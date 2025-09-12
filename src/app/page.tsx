@@ -1,103 +1,341 @@
-import Image from "next/image";
+'use client'
+import { useEffect, useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
+import { supabase } from '@/lib/supabase'
+import { motion } from 'framer-motion'
 
-export default function Home() {
+// Test Connection Component
+function TestConnection() {
+  const [connected, setConnected] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    const testConnection = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('count')
+          .limit(1)
+        
+        if (error) {
+          setError(error.message)
+        } else {
+          setConnected(true)
+        }
+      } catch (err) {
+        setError('Connection failed')
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    testConnection()
+  }, [])
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <motion.div 
+      className="glass"
+      style={{ 
+        padding: '24px', 
+        margin: '20px auto', 
+        maxWidth: '500px',
+        textAlign: 'center'
+      }}
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.3 }}
+    >
+      <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: '600' }}>
+        Database Connection Status
+      </h3>
+      {loading && (
+        <div style={{ color: '#666' }}>
+          <div style={{ 
+            width: '20px', 
+            height: '20px', 
+            border: '2px solid #f3f3f3',
+            borderTop: '2px solid #667eea',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+            margin: '0 auto'
+          }}></div>
+          <p style={{ marginTop: '8px' }}>Testing connection...</p>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+      )}
+      {!loading && connected && (
+        <div style={{ color: '#10b981' }}>
+          <div style={{ fontSize: '24px', marginBottom: '8px' }}>✅</div>
+          <p style={{ fontWeight: '500' }}>Connected to Supabase!</p>
+          <p style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
+            Database is ready for SecureNotes
+          </p>
+        </div>
+      )}
+      {!loading && error && (
+        <div style={{ color: '#ef4444' }}>
+          <div style={{ fontSize: '24px', marginBottom: '8px' }}>❌</div>
+          <p style={{ fontWeight: '500' }}>Connection Error</p>
+          <p style={{ fontSize: '14px', color: '#666', marginTop: '4px' }}>
+            {error}
+          </p>
+        </div>
+      )}
+    </motion.div>
+  )
+}
+
+// Main Home Component
+export default function Home() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
+  
+  // Navigation functions
+  const navigateToAuth = () => {
+    router.push('/auth')
+  }
+
+  const navigateToDashboard = () => {
+    router.push('/dashboard')
+  }
+  
+  // Show loading spinner while checking authentication
+  if (loading) {
+    return (
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center'
+      }}>
+        <div style={{
+          width: '40px',
+          height: '40px',
+          border: '4px solid rgba(255,255,255,0.3)',
+          borderTop: '4px solid white',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite'
+        }}></div>
+      </div>
+    )
+  }
+
+  return (
+    <main style={{
+      minHeight: '100vh',
+      padding: '40px 20px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      textAlign: 'center'
+    }}>
+      {/* Header Section */}
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        <h1 style={{
+          fontSize: 'clamp(2.5rem, 8vw, 4rem)',
+          fontWeight: '700',
+          background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+          marginBottom: '16px',
+          letterSpacing: '-0.02em'
+        }}>
+          SecureNotes
+        </h1>
+        
+        <motion.p
+          style={{
+            fontSize: '1.25rem',
+            color: 'rgba(255, 255, 255, 0.8)',
+            marginBottom: '40px',
+            maxWidth: '600px',
+            lineHeight: '1.6'
+          }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.2, duration: 0.6 }}
         >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          Secure, collaborative note-taking platform for teams. 
+          Create, share, and protect your ideas with end-to-end encryption.
+        </motion.p>
+      </motion.div>
+
+      {/* Features Grid */}
+      <motion.div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
+          gap: '24px',
+          maxWidth: '800px',
+          marginBottom: '40px',
+          width: '100%'
+        }}
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.4, duration: 0.6 }}
+      >
+        {[
+          {
+            icon: '🔒',
+            title: 'End-to-End Encryption',
+            description: 'Your notes are encrypted before they leave your device'
+          },
+          {
+            icon: '👥',
+            title: 'Real-time Collaboration',
+            description: 'Work together with your team in real-time'
+          },
+          {
+            icon: '🎨',
+            title: 'Beautiful Interface',
+            description: 'Clean, modern design that helps you focus'
+          },
+          {
+            icon: '🔐',
+            title: 'Access Control',
+            description: 'Fine-grained permissions for every note'
+          }
+        ].map((feature, index) => (
+          <motion.div
+            key={feature.title}
+            className="glass"
+            style={{
+              padding: '24px',
+              textAlign: 'center'
+            }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 + index * 0.1 }}
+            whileHover={{ 
+              scale: 1.05,
+              transition: { duration: 0.2 }
+            }}
+          >
+            <div style={{ fontSize: '2rem', marginBottom: '12px' }}>
+              {feature.icon}
+            </div>
+            <h3 style={{
+              fontSize: '1.125rem',
+              fontWeight: '600',
+              marginBottom: '8px',
+              color: 'white'
+            }}>
+              {feature.title}
+            </h3>
+            <p style={{
+              fontSize: '0.875rem',
+              color: 'rgba(255, 255, 255, 0.7)',
+              lineHeight: '1.5'
+            }}>
+              {feature.description}
+            </p>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Action Buttons */}
+      {!user ? (
+        <motion.div
+          style={{
+            display: 'flex',
+            gap: '16px',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            marginBottom: '40px'
+          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
         >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
+          <motion.button
+            className="btn-primary"
+            style={{ fontSize: '1.125rem', padding: '16px 32px' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={navigateToAuth}
+          >
+            Get Started Free
+          </motion.button>
+          
+          <motion.button
+            className="btn-secondary"
+            style={{ 
+              fontSize: '1.125rem', 
+              padding: '16px 32px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              color: 'white',
+              border: '1px solid rgba(255, 255, 255, 0.2)'
+            }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={navigateToAuth}
+          >
+            Sign In
+          </motion.button>
+        </motion.div>
+      ) : (
+        <motion.div
+          style={{ marginBottom: '40px' }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.8 }}
         >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
-  );
+          <div className="glass" style={{ padding: '24px', marginBottom: '16px' }}>
+            <h2 style={{ color: 'white', marginBottom: '8px' }}>
+              Welcome back! 👋
+            </h2>
+            <p style={{ color: 'rgba(255, 255, 255, 0.7)' }}>
+              {user.email}
+            </p>
+          </div>
+          
+          <motion.button
+            className="btn-primary"
+            style={{ fontSize: '1.125rem', padding: '16px 32px' }}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={navigateToDashboard}
+          >
+            Go to Dashboard
+          </motion.button>
+        </motion.div>
+      )}
+
+      {/* Connection Test */}
+      <TestConnection />
+
+      {/* Footer */}
+      <motion.footer
+        style={{
+          marginTop: '60px',
+          padding: '20px',
+          color: 'rgba(255, 255, 255, 0.6)',
+          fontSize: '0.875rem',
+          textAlign: 'center'
+        }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2 }}
+      >
+        <p>Built with Next.js, Supabase, and ❤️</p>
+        <p style={{ marginTop: '8px' }}>
+          Your data is encrypted and secure
+        </p>
+      </motion.footer>
+
+      {/* Add spinning animation */}
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
+    </main>
+  )
 }
