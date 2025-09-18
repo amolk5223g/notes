@@ -34,7 +34,7 @@ export default function StudyGroupManager() {
           maxWidth: '600px',
           margin: '0 auto 40px'
         }}>
-          We're building an amazing collaboration system where you and your friends 
+          We&apos;re building an amazing collaboration system where you and your friends 
           can create study groups, share notes, and work together on projects in real-time.
         </p>
 

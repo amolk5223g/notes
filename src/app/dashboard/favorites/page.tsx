@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { motion } from 'framer-motion'
-import { Star, FileText, Plus } from 'lucide-react'
+import { Star, FileText } from 'lucide-react'
 
 export default function FavoritesPage() {
   const { user } = useAuth()
@@ -39,6 +39,10 @@ export default function FavoritesPage() {
         </div>
       </DashboardLayout>
     )
+  }
+
+  if (!user) {
+    return null
   }
 
   return (
@@ -110,6 +114,13 @@ export default function FavoritesPage() {
           </motion.button>
         </motion.div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </DashboardLayout>
   )
 }

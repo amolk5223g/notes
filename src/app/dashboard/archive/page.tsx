@@ -4,7 +4,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { motion } from 'framer-motion'
-import { Archive, FileText, RotateCcw } from 'lucide-react'
+import { Archive, FileText } from 'lucide-react'
 
 export default function ArchivePage() {
   const { user } = useAuth()
@@ -41,6 +41,10 @@ export default function ArchivePage() {
     )
   }
 
+  if (!user) {
+    return null
+  }
+
   return (
     <DashboardLayout>
       <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
@@ -57,7 +61,7 @@ export default function ArchivePage() {
             color: 'rgba(255, 255, 255, 0.7)',
             fontSize: '1rem'
           }}>
-            Archived notes and files you're not currently using
+            Archived notes and files you&apos;re not currently using
           </p>
         </div>
 
@@ -90,7 +94,7 @@ export default function ArchivePage() {
             marginBottom: '32px',
             lineHeight: '1.6'
           }}>
-            Archive old notes and files you don't need immediate access to
+            Archive old notes and files you don&apos;t need immediate access to
           </p>
           
           <motion.button
@@ -110,6 +114,13 @@ export default function ArchivePage() {
           </motion.button>
         </motion.div>
       </div>
+
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </DashboardLayout>
   )
 }

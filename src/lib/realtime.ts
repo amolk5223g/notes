@@ -17,7 +17,7 @@ export class RealtimeCollaboration {
     this.userId = userId
   }
 
-  joinNote(noteId: string, onUpdate: (data: any) => void) {
+  joinNote(noteId: string, onUpdate: (data: Record<string, unknown>) => void) {
     this.noteId = noteId
     this.channel = supabase
       .channel(`note:${noteId}`)

@@ -1,35 +1,34 @@
 'use client'
-import { useAuth } from '@/contexts/AuthContext'
+import { useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { useEffect, useState } from 'react'
 
 export default function AuthDebug() {
-  const { user } = useAuth()
-  const [dbUser, setDbUser] = useState<any>(null)
+  const [data, setData] = useState<Record<string, unknown> | null>(null)
 
-  useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { user: currentUser } } = await supabase.auth.getUser()
-      setDbUser(currentUser)
+  const testConnection = async () => {
+    try {
+      const { data: result, error } = await supabase.from('notes').select('count').limit(1)
+      if (error) {
+        setData({ error: error.message })
+      } else {
+        setData({ success: true, result })
+      }
+    } catch (err) {
+      setData({ error: 'Connection failed' })
     }
-    checkAuth()
-  }, [])
+  }
 
   return (
-    <div style={{
-      position: 'fixed',
-      bottom: '20px',
-      right: '20px',
-      background: 'rgba(0,0,0,0.8)',
-      color: 'white',
-      padding: '10px',
-      borderRadius: '8px',
-      fontSize: '12px',
-      zIndex: 1000
-    }}>
-      <div><strong>Auth Context User:</strong> {user?.id || 'None'}</div>
-      <div><strong>Direct DB User:</strong> {dbUser?.id || 'None'}</div>
-      <div><strong>Match:</strong> {user?.id === dbUser?.id ? '✅' : '❌'}</div>
+    <div style={{ padding: '20px', color: 'white' }}>
+      <h3>Auth Debug</h3>
+      <button onClick={testConnection} style={{ padding: '10px', margin: '10px 0' }}>
+        Test Connection
+      </button>
+      {data && (
+        <pre style={{ backgroundColor: 'rgba(0,0,0,0.3)', padding: '10px', borderRadius: '4px' }}>
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      )}
     </div>
   )
 }

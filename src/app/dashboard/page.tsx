@@ -1,107 +1,89 @@
 'use client'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { useEffect, useState } from 'react'
 import { supabase } from '@/lib/supabase'
-import { motion } from 'framer-motion'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { motion } from 'framer-motion'
 import { 
-  FileText, 
   Plus, 
-  Calendar, 
-  Users, 
-  Star, 
-  MoreVertical,
-  Share2,
-  Trash2,
-  Edit3
+  Search, 
+  FileText, 
+  Lock,
+  Calendar,
+  Tag
 } from 'lucide-react'
 import { Note } from '@/types'
 
-export default function Dashboard() {
+export default function DashboardPage() {
   const { user, loading } = useAuth()
   const router = useRouter()
   const [notes, setNotes] = useState<Note[]>([])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filteredNotes, setFilteredNotes] = useState<Note[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
 
-  // Redirect if not authenticated
-  useEffect(() => {
-    if (!loading && !user) {
-      router.push('/auth')
-    }
-  }, [user, loading, router])
+  const fetchNotes = useCallback(async () => {
+    if (!user) return
 
-  // Fetch user's notes
-  useEffect(() => {
-    if (user) {
-      fetchNotes()
+    setNotesLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('notes')
+        .select('*')
+        .eq('owner_id', user.id)
+        .order('updated_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching notes:', error)
+      } else {
+        setNotes(data || [])
+      }
+    } catch (err) {
+      console.error('Error:', err)
+    } finally {
+      setNotesLoading(false)
     }
   }, [user])
 
-  const fetchNotes = async () => {
-  try {
-    console.log('Current user:', user?.id) // Debug log
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push('/auth')
+      return
+    }
     
-    const { data, error } = await supabase
-      .from('notes')
-      .select('*')
-      .eq('owner_id', user?.id)
-      .order('updated_at', { ascending: false })
-
-    console.log('Query result:', { data, error }) // Debug log
-
-    if (error) {
-      console.error('Error fetching notes:', error)
-      // Show user-friendly error
-      alert(`Database Error: ${error.message}`)
-    } else {
-      console.log('Successfully fetched notes:', data)
-      setNotes(data || [])
+    if (user) {
+      fetchNotes()
     }
-  } catch (error) {
-    console.error('Unexpected error:', error)
-  } finally {
-    setNotesLoading(false)
-  }
-}
+  }, [user, loading, router, fetchNotes])
 
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    const now = new Date()
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
-
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    } else if (diffInHours < 168) { // 7 days
-      return date.toLocaleDateString([], { weekday: 'short' })
-    } else {
-      return date.toLocaleDateString([], { month: 'short', day: 'numeric' })
-    }
-  }
-
-  const truncateContent = (content: string, maxLength: number = 100) => {
-    if (!content) return 'No content'
-    return content.length > maxLength ? content.substring(0, maxLength) + '...' : content
-  }
+  useEffect(() => {
+    const filtered = notes.filter(note =>
+      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      note.content?.toLowerCase().includes(searchQuery.toLowerCase())
+    )
+    setFilteredNotes(filtered)
+  }, [searchQuery, notes])
 
   if (loading) {
     return (
-      <div style={{
-        minHeight: '100vh',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center'
-      }}>
+      <DashboardLayout>
         <div style={{
-          width: '40px',
-          height: '40px',
-          border: '4px solid rgba(255,255,255,0.3)',
-          borderTop: '4px solid white',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite'
-        }} />
-      </div>
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          minHeight: '400px'
+        }}>
+          <div style={{
+            width: '40px',
+            height: '40px',
+            border: '4px solid rgba(255,255,255,0.3)',
+            borderTop: '4px solid white',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite'
+          }} />
+        </div>
+      </DashboardLayout>
     )
   }
 
@@ -124,22 +106,22 @@ export default function Dashboard() {
               fontSize: '2rem',
               fontWeight: '700',
               color: 'white',
-              marginBottom: '8px'
+              marginBottom: '4px'
             }}>
-              All Notes
+              Your Notes
             </h1>
             <p style={{
               color: 'rgba(255, 255, 255, 0.7)',
               fontSize: '1rem'
             }}>
-              {notes.length} {notes.length === 1 ? 'note' : 'notes'}
+              {notes.length} {notes.length === 1 ? 'note' : 'notes'} • Last updated {new Date().toLocaleDateString()}
             </p>
           </div>
 
           <motion.button
             className="btn-primary"
             style={{
-              padding: '12px 24px',
+              padding: '12px 20px',
               display: 'flex',
               alignItems: 'center',
               gap: '8px'
@@ -149,32 +131,59 @@ export default function Dashboard() {
             onClick={() => router.push('/dashboard/new')}
           >
             <Plus size={18} />
-            Create Note
+            New Note
           </motion.button>
+        </div>
+
+        {/* Search Bar */}
+        <div style={{
+          position: 'relative',
+          marginBottom: '32px',
+          maxWidth: '400px'
+        }}>
+          <Search size={20} style={{
+            position: 'absolute',
+            left: '16px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            color: 'rgba(255, 255, 255, 0.5)'
+          }} />
+          <input
+            type="text"
+            placeholder="Search your notes..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            style={{
+              width: '100%',
+              padding: '12px 16px 12px 48px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '12px',
+              color: 'white',
+              fontSize: '16px',
+              outline: 'none'
+            }}
+          />
         </div>
 
         {/* Notes Grid */}
         {notesLoading ? (
           <div style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-            gap: '20px'
+            display: 'flex',
+            justifyContent: 'center',
+            alignItems: 'center',
+            minHeight: '200px'
           }}>
-            {[...Array(6)].map((_, i) => (
-              <div
-                key={i}
-                className="glass"
-                style={{
-                  padding: '20px',
-                  height: '200px',
-                  borderRadius: '12px',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  animation: 'pulse 2s infinite'
-                }}
-              />
-            ))}
+            <div style={{
+              width: '40px',
+              height: '40px',
+              border: '4px solid rgba(255,255,255,0.3)',
+              borderTop: '4px solid white',
+              borderRadius: '50%',
+              animation: 'spin 1s linear infinite'
+            }} />
           </div>
-        ) : notes.length === 0 ? (
+        ) : filteredNotes.length === 0 ? (
           <motion.div
             className="glass"
             style={{
@@ -185,171 +194,158 @@ export default function Dashboard() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
           >
-            <FileText size={48} style={{
+            <FileText size={64} style={{
               color: 'rgba(255, 255, 255, 0.5)',
-              marginBottom: '16px'
+              marginBottom: '24px'
             }} />
+            
             <h3 style={{
-              fontSize: '1.25rem',
+              fontSize: '1.5rem',
               fontWeight: '600',
               color: 'white',
-              marginBottom: '8px'
+              marginBottom: '12px'
             }}>
-              No notes yet
+              {searchQuery ? 'No notes found' : 'No notes yet'}
             </h3>
+            
             <p style={{
               color: 'rgba(255, 255, 255, 0.7)',
-              marginBottom: '24px'
+              marginBottom: '32px',
+              lineHeight: '1.6'
             }}>
-              Create your first note to get started with SecureNotes
+              {searchQuery 
+                ? `No notes match "${searchQuery}". Try a different search term.`
+                : 'Create your first note to get started with your study journey!'
+              }
             </p>
-            <motion.button
-              className="btn-primary"
-              style={{
-                padding: '12px 24px',
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px'
-              }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => router.push('/dashboard/new')}
-            >
-              <Plus size={18} />
-              Create Your First Note
-            </motion.button>
+            
+            {!searchQuery && (
+              <motion.button
+                className="btn-primary"
+                style={{
+                  padding: '12px 24px',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => router.push('/dashboard/new')}
+              >
+                <Plus size={18} />
+                Create First Note
+              </motion.button>
+            )}
           </motion.div>
         ) : (
-          <motion.div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-              gap: '20px'
-            }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.4 }}
-          >
-            {notes.map((note, index) => (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+            gap: '20px'
+          }}>
+            {filteredNotes.map((note, index) => (
               <motion.div
                 key={note.id}
                 className="glass"
                 style={{
-                  padding: '20px',
-                  borderRadius: '12px',
-                  cursor: 'pointer',
-                  position: 'relative',
-                  minHeight: '180px',
-                  display: 'flex',
-                  flexDirection: 'column'
+                  padding: '24px',
+                  borderRadius: '16px',
+                  cursor: 'pointer'
                 }}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.1 }}
-                whileHover={{ 
-                  scale: 1.02,
-                  transition: { duration: 0.2 }
-                }}
+                whileHover={{ scale: 1.02, y: -4 }}
                 onClick={() => router.push(`/dashboard/notes/${note.id}`)}
               >
-                {/* Note Header */}
                 <div style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'flex-start',
-                  marginBottom: '12px'
+                  justifyContent: 'space-between',
+                  marginBottom: '16px'
                 }}>
                   <h3 style={{
-                    fontSize: '1.125rem',
+                    fontSize: '1.25rem',
                     fontWeight: '600',
                     color: 'white',
-                    lineHeight: '1.4',
-                    flex: 1,
-                    marginRight: '8px'
+                    marginBottom: '8px',
+                    lineHeight: '1.3'
                   }}>
                     {note.title}
                   </h3>
                   
-                  <button
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'rgba(255, 255, 255, 0.6)',
-                      cursor: 'pointer',
-                      padding: '4px',
-                      borderRadius: '4px',
-                      opacity: 0.7
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      // TODO: Add dropdown menu
-                    }}
-                  >
-                    <MoreVertical size={16} />
-                  </button>
+                  {note.is_encrypted && (
+                    <Lock size={16} style={{ color: '#fbbf24' }} />
+                  )}
                 </div>
 
-                {/* Note Content Preview */}
-                <p style={{
-                  color: 'rgba(255, 255, 255, 0.8)',
-                  fontSize: '0.875rem',
-                  lineHeight: '1.5',
-                  flex: 1,
-                  marginBottom: '16px'
-                }}>
-                  {truncateContent(note.content || '')}
-                </p>
+                {note.content && (
+                  <p style={{
+                    color: 'rgba(255, 255, 255, 0.7)',
+                    fontSize: '14px',
+                    lineHeight: '1.5',
+                    marginBottom: '16px',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    display: '-webkit-box',
+                    WebkitLineClamp: 3,
+                    WebkitBoxOrient: 'vertical'
+                  }}>
+                    {note.content.substring(0, 150)}
+                    {note.content.length > 150 && '...'}
+                  </p>
+                )}
 
-                {/* Note Footer */}
+                {note.tags && note.tags.length > 0 && (
+                  <div style={{
+                    display: 'flex',
+                    gap: '6px',
+                    marginBottom: '16px',
+                    flexWrap: 'wrap'
+                  }}>
+                    {note.tags.slice(0, 3).map((tag, tagIndex) => (
+                      <span
+                        key={tagIndex}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          backgroundColor: 'rgba(102, 126, 234, 0.3)',
+                          color: '#a5b4fc',
+                          padding: '4px 8px',
+                          borderRadius: '12px',
+                          fontSize: '12px',
+                          fontWeight: '500'
+                        }}
+                      >
+                        <Tag size={10} />
+                        {tag}
+                      </span>
+                    ))}
+                    {note.tags.length > 3 && (
+                      <span style={{
+                        color: 'rgba(255, 255, 255, 0.5)',
+                        fontSize: '12px'
+                      }}>
+                        +{note.tags.length - 3} more
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 <div style={{
                   display: 'flex',
-                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginTop: 'auto'
+                  gap: '8px',
+                  fontSize: '12px',
+                  color: 'rgba(255, 255, 255, 0.5)'
                 }}>
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    color: 'rgba(255, 255, 255, 0.6)',
-                    fontSize: '0.75rem'
-                  }}>
-                    <Calendar size={12} />
-                    {formatDate(note.updated_at)}
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    {note.tags.length > 0 && (
-                      <div style={{
-                        backgroundColor: 'rgba(102, 126, 234, 0.3)',
-                        color: '#667eea',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        fontSize: '0.65rem',
-                        fontWeight: '500'
-                      }}>
-                        {note.tags[0]}
-                        {note.tags.length > 1 && ` +${note.tags.length - 1}`}
-                      </div>
-                    )}
-                    
-                    {note.is_encrypted && (
-                      <div style={{
-                        color: 'rgba(34, 197, 94, 0.8)',
-                        fontSize: '0.75rem'
-                      }}>
-                        🔒
-                      </div>
-                    )}
-                  </div>
+                  <Calendar size={12} />
+                  {new Date(note.updated_at).toLocaleDateString()}
                 </div>
               </motion.div>
             ))}
-          </motion.div>
+          </div>
         )}
       </div>
 
@@ -357,10 +353,6 @@ export default function Dashboard() {
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
-        }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
         }
       `}</style>
     </DashboardLayout>

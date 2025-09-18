@@ -1,5 +1,5 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
@@ -92,7 +92,7 @@ export default function JoinGroupPage() {
           lineHeight: '1.5'
         }}>
           Group collaboration features are currently in development. 
-          Once ready, you'll be able to join study groups using invite codes like: <strong>{inviteCode || 'ABC123'}</strong>
+          Once ready, you&apos;ll be able to join study groups using invite codes like: <strong>{inviteCode || 'ABC123'}</strong>
         </p>
         
         <motion.button

@@ -1,80 +1,51 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import { motion } from 'framer-motion'
 import DashboardLayout from '@/components/layout/DashboardLayout'
+import { motion } from 'framer-motion'
 import { 
   Save, 
   ArrowLeft, 
   Lock, 
-  Unlock, 
-  Tag, 
-  Eye, 
-  EyeOff,
-  Plus,
-  X
+  Unlock,
+  FileText
 } from 'lucide-react'
 
-export default function NewNote() {
+export default function NewNotePage() {
   const { user } = useAuth()
   const router = useRouter()
-  
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
-  const [tags, setTags] = useState<string[]>([])
-  const [newTag, setNewTag] = useState('')
   const [isEncrypted, setIsEncrypted] = useState(false)
-  const [password, setPassword] = useState('')
-  const [showPassword, setShowPassword] = useState(false)
   const [saving, setSaving] = useState(false)
-  const [autoSaving, setAutoSaving] = useState(false)
+  const [lastSaved, setLastSaved] = useState<Date | null>(null)
 
-  // Auto-save functionality
-  const autoSave = async () => {
-    if (!title.trim() && !content.trim()) return
-    
-    setAutoSaving(true)
-    try {
-      // Auto-save logic will be added here
-      setTimeout(() => setAutoSaving(false), 1000)
-    } catch (error) {
-      setAutoSaving(false)
-    }
-  }
-
-  const addTag = () => {
-    if (newTag.trim() && !tags.includes(newTag.trim())) {
-      setTags([...tags, newTag.trim()])
-      setNewTag('')
-    }
-  }
-
-  const removeTag = (tagToRemove: string) => {
-    setTags(tags.filter(tag => tag !== tagToRemove))
-  }
-
-  const handleSave = async () => {
-    if (!title.trim()) {
-      alert('Please enter a title for your note')
+  useEffect(() => {
+    if (!user) {
+      router.push('/auth')
       return
     }
+  }, [user, router])
+
+  const handleSave = async () => {
+    if (!user || !title.trim()) return
 
     setSaving(true)
     try {
-      const noteData = {
-        title: title.trim(),
-        content: content.trim(),
-        tags: tags,
-        is_encrypted: isEncrypted,
-        password_hash: isEncrypted && password ? btoa(password) : null,
-        owner_id: user?.id
-      }
-
       const { data, error } = await supabase
         .from('notes')
-        .insert([noteData])
+        .insert([
+          {
+            title: title.trim(),
+            content: content.trim(),
+            is_encrypted: isEncrypted,
+            owner_id: user.id,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ])
         .select()
         .single()
 
@@ -82,20 +53,24 @@ export default function NewNote() {
         console.error('Error saving note:', error)
         alert('Error saving note: ' + error.message)
       } else {
-        console.log('Note saved successfully:', data)
-        router.push('/dashboard')
+        setLastSaved(new Date())
+        router.push(`/dashboard/notes/${data.id}`)
       }
-    } catch (error) {
-      console.error('Unexpected error:', error)
+    } catch (err) {
+      console.error('Unexpected error:', err)
       alert('An unexpected error occurred')
     } finally {
       setSaving(false)
     }
   }
 
+  if (!user) {
+    return null
+  }
+
   return (
     <DashboardLayout>
-      <div style={{ maxWidth: '900px', margin: '0 auto' }}>
+      <div style={{ maxWidth: '1000px', margin: '0 auto' }}>
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -123,71 +98,89 @@ export default function NewNote() {
               Back
             </motion.button>
             
-            <h1 style={{
-              fontSize: '1.5rem',
-              fontWeight: '700',
-              color: 'white'
-            }}>
-              Create New Note
-            </h1>
-
-            {autoSaving && (
-              <div style={{
-                color: 'rgba(255, 255, 255, 0.7)',
-                fontSize: '14px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px'
+            <div>
+              <h1 style={{
+                fontSize: '1.25rem',
+                fontWeight: '700',
+                color: 'white',
+                marginBottom: '4px'
               }}>
-                <div style={{
-                  width: '12px',
-                  height: '12px',
-                  border: '2px solid rgba(255,255,255,0.3)',
-                  borderTop: '2px solid white',
-                  borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }} />
-                Auto-saving...
-              </div>
-            )}
+                Create New Note
+              </h1>
+              <p style={{
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '14px'
+              }}>
+                {lastSaved ? `Saved ${lastSaved.toLocaleTimeString()}` : 'Not saved yet'}
+              </p>
+            </div>
           </div>
 
-          <motion.button
-            className="btn-primary"
-            style={{
-              padding: '12px 24px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={handleSave}
-            disabled={saving}
-          >
-            {saving ? (
-              <div style={{
-                width: '16px',
-                height: '16px',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderTop: '2px solid white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
-            ) : (
-              <Save size={16} />
-            )}
-            {saving ? 'Saving...' : 'Save Note'}
-          </motion.button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <motion.button
+              onClick={() => setIsEncrypted(!isEncrypted)}
+              style={{
+                padding: '10px 16px',
+                backgroundColor: isEncrypted ? 'rgba(251, 191, 36, 0.2)' : 'rgba(255, 255, 255, 0.1)',
+                color: isEncrypted ? '#fbbf24' : 'white',
+                border: `1px solid ${isEncrypted ? 'rgba(251, 191, 36, 0.3)' : 'rgba(255, 255, 255, 0.2)'}`,
+                borderRadius: '6px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '14px'
+              }}
+              whileHover={{ scale: 1.05 }}
+            >
+              {isEncrypted ? <Lock size={16} /> : <Unlock size={16} />}
+              {isEncrypted ? 'Encrypted' : 'Public'}
+            </motion.button>
+            
+            <motion.button
+              onClick={handleSave}
+              disabled={saving || !title.trim()}
+              className="btn-primary"
+              style={{
+                padding: '10px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: saving || !title.trim() ? 0.5 : 1,
+                cursor: saving || !title.trim() ? 'not-allowed' : 'pointer'
+              }}
+              whileHover={{ scale: saving || !title.trim() ? 1 : 1.05 }}
+              whileTap={{ scale: saving || !title.trim() ? 1 : 0.95 }}
+            >
+              {saving ? (
+                <>
+                  <div style={{
+                    width: '16px',
+                    height: '16px',
+                    border: '2px solid rgba(255,255,255,0.3)',
+                    borderTop: '2px solid white',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite'
+                  }} />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save size={16} />
+                  Save Note
+                </>
+              )}
+            </motion.button>
+          </div>
         </div>
 
-        {/* Main Editor */}
+        {/* Editor */}
         <motion.div
           className="glass"
           style={{
             padding: '32px',
             borderRadius: '16px',
-            marginBottom: '24px'
+            minHeight: '600px'
           }}
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -195,9 +188,9 @@ export default function NewNote() {
           {/* Title Input */}
           <input
             type="text"
-            placeholder="Enter note title..."
             value={title}
             onChange={(e) => setTitle(e.target.value)}
+            placeholder="Enter note title..."
             style={{
               width: '100%',
               background: 'none',
@@ -206,16 +199,16 @@ export default function NewNote() {
               fontSize: '1.75rem',
               fontWeight: '700',
               color: 'white',
-              marginBottom: '24px',
+              marginBottom: '20px',
               padding: '8px 0'
             }}
           />
 
           {/* Content Editor */}
           <textarea
-            placeholder="Start writing your note..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
+            placeholder="Start writing your note..."
             style={{
               width: '100%',
               minHeight: '400px',
@@ -226,254 +219,32 @@ export default function NewNote() {
               lineHeight: '1.6',
               color: 'rgba(255, 255, 255, 0.9)',
               resize: 'vertical',
-              fontFamily: 'inherit'
+              fontFamily: 'inherit',
+              padding: '0'
             }}
           />
-        </motion.div>
 
-        {/* Note Settings */}
-        <motion.div
-          className="glass"
-          style={{
-            padding: '24px',
-            borderRadius: '16px',
-            marginBottom: '24px'
-          }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <h3 style={{
-            fontSize: '1.125rem',
-            fontWeight: '600',
-            color: 'white',
-            marginBottom: '20px'
-          }}>
-            Note Settings
-          </h3>
-
-          {/* Tags */}
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{
-              display: 'block',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: '500',
-              marginBottom: '8px'
-            }}>
-              Tags
-            </label>
-            
+          {/* Encryption Notice */}
+          {isEncrypted && (
             <div style={{
-              display: 'flex',
-              flexWrap: 'wrap',
-              gap: '8px',
-              marginBottom: '12px'
-            }}>
-              {tags.map((tag, index) => (
-                <motion.div
-                  key={tag}
-                  style={{
-                    backgroundColor: 'rgba(102, 126, 234, 0.3)',
-                    color: '#667eea',
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: '500',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  {tag}
-                  <button
-                    onClick={() => removeTag(tag)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: 'inherit',
-                      cursor: 'pointer',
-                      padding: '2px'
-                    }}
-                  >
-                    <X size={12} />
-                  </button>
-                </motion.div>
-              ))}
-            </div>
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <input
-                type="text"
-                placeholder="Add a tag..."
-                value={newTag}
-                onChange={(e) => setNewTag(e.target.value)}
-                onKeyPress={(e) => e.key === 'Enter' && addTag()}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                  border: '1px solid rgba(255, 255, 255, 0.2)',
-                  borderRadius: '6px',
-                  color: 'white',
-                  fontSize: '14px',
-                  outline: 'none'
-                }}
-              />
-              <motion.button
-                onClick={addTag}
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(102, 126, 234, 0.3)',
-                  border: '1px solid rgba(102, 126, 234, 0.5)',
-                  borderRadius: '6px',
-                  color: '#667eea',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '4px'
-                }}
-                whileHover={{ backgroundColor: 'rgba(102, 126, 234, 0.4)' }}
-              >
-                <Plus size={14} />
-                Add
-              </motion.button>
-            </div>
-          </div>
-
-          {/* Encryption Toggle */}
-          <div style={{ marginBottom: isEncrypted ? '20px' : '0' }}>
-            <label style={{
+              marginTop: '20px',
+              padding: '12px 16px',
+              backgroundColor: 'rgba(251, 191, 36, 0.1)',
+              border: '1px solid rgba(251, 191, 36, 0.3)',
+              borderRadius: '8px',
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
-              cursor: 'pointer',
-              color: 'white',
-              fontSize: '14px',
-              fontWeight: '500'
+              gap: '8px'
             }}>
-              <input
-                type="checkbox"
-                checked={isEncrypted}
-                onChange={(e) => setIsEncrypted(e.target.checked)}
-                style={{ display: 'none' }}
-              />
-              <div style={{
-                width: '20px',
-                height: '20px',
-                borderRadius: '4px',
-                border: '2px solid rgba(255, 255, 255, 0.3)',
-                backgroundColor: isEncrypted ? '#667eea' : 'transparent',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                transition: 'all 0.2s ease'
+              <Lock size={16} style={{ color: '#fbbf24' }} />
+              <span style={{
+                color: '#fbbf24',
+                fontSize: '14px'
               }}>
-                {isEncrypted && <div style={{ color: 'white', fontSize: '12px' }}>✓</div>}
-              </div>
-              {isEncrypted ? <Lock size={16} /> : <Unlock size={16} />}
-              Encrypt this note
-            </label>
-          </div>
-
-          {/* Password Input (if encrypted) */}
-          {isEncrypted && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              transition={{ duration: 0.2 }}
-            >
-              <label style={{
-                display: 'block',
-                color: 'white',
-                fontSize: '14px',
-                fontWeight: '500',
-                marginBottom: '8px'
-              }}>
-                Encryption Password
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  placeholder="Enter password for encryption..."
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 40px 12px 12px',
-                    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                    border: '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '8px',
-                    color: 'white',
-                    fontSize: '14px',
-                    outline: 'none'
-                  }}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    background: 'none',
-                    border: 'none',
-                    color: 'rgba(255, 255, 255, 0.5)',
-                    cursor: 'pointer',
-                    padding: '4px'
-                  }}
-                >
-                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
-              </div>
-              <p style={{
-                fontSize: '12px',
-                color: 'rgba(255, 255, 255, 0.6)',
-                marginTop: '4px'
-              }}>
-                This password will be required to view the note content
-              </p>
-            </motion.div>
+                This note will be encrypted and only visible to you
+              </span>
+            </div>
           )}
-        </motion.div>
-
-        {/* Quick Actions */}
-        <motion.div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            justifyContent: 'center',
-            marginBottom: '40px'
-          }}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.2 }}
-        >
-          <button
-            className="btn-secondary"
-            onClick={() => router.push('/dashboard')}
-            style={{
-              padding: '10px 20px',
-              backgroundColor: 'rgba(255, 255, 255, 0.1)',
-              color: 'white',
-              border: '1px solid rgba(255, 255, 255, 0.2)'
-            }}
-          >
-            Cancel
-          </button>
-          
-          <button
-            className="btn-primary"
-            onClick={handleSave}
-            disabled={saving}
-            style={{ padding: '10px 20px' }}
-          >
-            Save & Continue Editing
-          </button>
         </motion.div>
       </div>
 

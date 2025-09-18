@@ -1,49 +1,24 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useEffect } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
-import { supabase } from '@/lib/supabase'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { motion } from 'framer-motion'
-import { Share2, FileText, Users, Calendar } from 'lucide-react'
-import { Note, UploadedFile } from '@/types'
+import { Share2, Users } from 'lucide-react'
 
 export default function SharedPage() {
   const { user } = useAuth()
   const router = useRouter()
-  const [sharedNotes, setSharedNotes] = useState<Note[]>([])
-  const [sharedFiles, setSharedFiles] = useState<UploadedFile[]>([])
-  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!user) {
       router.push('/auth')
       return
     }
-    // For now, show empty state until we implement full sharing
-    setLoading(false)
   }, [user, router])
 
-  if (loading) {
-    return (
-      <DashboardLayout>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          minHeight: '400px'
-        }}>
-          <div style={{
-            width: '40px',
-            height: '40px',
-            border: '4px solid rgba(255,255,255,0.3)',
-            borderTop: '4px solid white',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite'
-          }} />
-        </div>
-      </DashboardLayout>
-    )
+  if (!user) {
+    return null
   }
 
   return (
@@ -66,7 +41,6 @@ export default function SharedPage() {
           </p>
         </div>
 
-        {/* Coming Soon State */}
         <motion.div
           className="glass"
           style={{

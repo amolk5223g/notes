@@ -1,21 +1,22 @@
 'use client'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
-import { Eye, EyeOff, Mail, Lock } from 'lucide-react'
+import { Eye, EyeOff, Mail, Lock, AlertCircle } from 'lucide-react'
 
 interface LoginFormProps {
-  onSwitchToRegister: () => void
+  onToggleMode: () => void
 }
 
-export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
+export default function LoginForm({ onToggleMode }: LoginFormProps) {
+  const { signIn } = useAuth()
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-
-  const { signIn } = useAuth()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -23,11 +24,12 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
     setError('')
 
     try {
-      const { error } = await signIn(email, password)
+      const { data, error } = await signIn(email, password)
+      
       if (error) {
         setError(error.message)
-      } else {
-        // Redirect will be handled by auth context
+      } else if (data.user) {
+        router.push('/dashboard')
       }
     } catch (err) {
       setError('An unexpected error occurred')
@@ -42,46 +44,46 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
       style={{
         width: '100%',
         maxWidth: '400px',
-        padding: '32px',
-        margin: '0 auto'
+        padding: '40px',
+        borderRadius: '20px'
       }}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
     >
-      <h2 style={{
-        fontSize: '1.875rem',
-        fontWeight: '700',
-        color: 'white',
-        textAlign: 'center',
-        marginBottom: '8px'
-      }}>
-        Welcome Back
-      </h2>
-      
-      <p style={{
-        color: 'rgba(255, 255, 255, 0.7)',
-        textAlign: 'center',
-        marginBottom: '32px'
-      }}>
-        Sign in to access your secure notes
-      </p>
+      <div style={{ textAlign: 'center', marginBottom: '32px' }}>
+        <h2 style={{
+          fontSize: '2rem',
+          fontWeight: '700',
+          color: 'white',
+          marginBottom: '8px'
+        }}>
+          Welcome back
+        </h2>
+        <p style={{
+          color: 'rgba(255, 255, 255, 0.7)',
+          fontSize: '1rem'
+        }}>
+          Sign in to your account
+        </p>
+      </div>
 
       {error && (
         <motion.div
           style={{
-            background: 'rgba(239, 68, 68, 0.1)',
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
             borderRadius: '8px',
             padding: '12px',
-            marginBottom: '20px',
-            color: '#fca5a5',
-            fontSize: '14px'
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}
           initial={{ opacity: 0, x: -10 }}
           animate={{ opacity: 1, x: 0 }}
         >
-          {error}
+          <AlertCircle size={16} style={{ color: '#ef4444' }} />
+          <span style={{ color: '#ef4444', fontSize: '14px' }}>{error}</span>
         </motion.div>
       )}
 
@@ -99,7 +101,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           <div style={{ position: 'relative' }}>
             <Mail size={18} style={{
               position: 'absolute',
-              left: '12px',
+              left: '16px',
               top: '50%',
               transform: 'translateY(-50%)',
               color: 'rgba(255, 255, 255, 0.5)'
@@ -108,27 +110,18 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              placeholder="Enter your email"
               required
               style={{
                 width: '100%',
-                padding: '12px 12px 12px 40px',
+                padding: '14px 16px 14px 48px',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 color: 'white',
                 fontSize: '16px',
-                outline: 'none',
-                transition: 'all 0.2s ease'
+                outline: 'none'
               }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'rgba(102, 126, 234, 0.5)'
-                e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-                e.target.style.boxShadow = 'none'
-              }}
-              placeholder="Enter your email"
             />
           </div>
         </div>
@@ -146,7 +139,7 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           <div style={{ position: 'relative' }}>
             <Lock size={18} style={{
               position: 'absolute',
-              left: '12px',
+              left: '16px',
               top: '50%',
               transform: 'translateY(-50%)',
               color: 'rgba(255, 255, 255, 0.5)'
@@ -155,41 +148,31 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
               type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter your password"
               required
               style={{
                 width: '100%',
-                padding: '12px 40px 12px 40px',
+                padding: '14px 48px 14px 48px',
                 backgroundColor: 'rgba(255, 255, 255, 0.1)',
                 border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
+                borderRadius: '12px',
                 color: 'white',
                 fontSize: '16px',
-                outline: 'none',
-                transition: 'all 0.2s ease'
+                outline: 'none'
               }}
-              onFocus={(e) => {
-                e.target.style.borderColor = 'rgba(102, 126, 234, 0.5)'
-                e.target.style.boxShadow = '0 0 0 3px rgba(102, 126, 234, 0.1)'
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = 'rgba(255, 255, 255, 0.2)'
-                e.target.style.boxShadow = 'none'
-              }}
-              placeholder="Enter your password"
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
               style={{
                 position: 'absolute',
-                right: '12px',
+                right: '16px',
                 top: '50%',
                 transform: 'translateY(-50%)',
                 background: 'none',
                 border: 'none',
                 color: 'rgba(255, 255, 255, 0.5)',
-                cursor: 'pointer',
-                padding: '4px'
+                cursor: 'pointer'
               }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -203,51 +186,64 @@ export default function LoginForm({ onSwitchToRegister }: LoginFormProps) {
           className="btn-primary"
           style={{
             width: '100%',
-            padding: '14px',
+            padding: '16px',
             fontSize: '16px',
             fontWeight: '600',
-            marginBottom: '20px',
-            position: 'relative'
+            marginBottom: '24px'
           }}
-          whileHover={!loading ? { scale: 1.02 } : {}}
-          whileTap={!loading ? { scale: 0.98 } : {}}
+          whileHover={{ scale: loading ? 1 : 1.02 }}
+          whileTap={{ scale: loading ? 1 : 0.98 }}
         >
           {loading ? (
             <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderTop: '2px solid white',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite',
-              margin: '0 auto'
-            }} />
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px'
+            }}>
+              <div style={{
+                width: '16px',
+                height: '16px',
+                border: '2px solid rgba(255,255,255,0.3)',
+                borderTop: '2px solid white',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite'
+              }} />
+              Signing in...
+            </div>
           ) : (
             'Sign In'
           )}
         </motion.button>
+
+        <p style={{
+          textAlign: 'center',
+          color: 'rgba(255, 255, 255, 0.7)',
+          fontSize: '14px'
+        }}>
+          Don&apos;t have an account?{' '}
+          <button
+            type="button"
+            onClick={onToggleMode}
+            style={{
+              background: 'none',
+              border: 'none',
+              color: '#667eea',
+              cursor: 'pointer',
+              textDecoration: 'underline'
+            }}
+          >
+            Sign up
+          </button>
+        </p>
       </form>
 
-      <div style={{
-        textAlign: 'center',
-        color: 'rgba(255, 255, 255, 0.7)',
-        fontSize: '14px'
-      }}>
-        Don't have an account?{' '}
-        <button
-          onClick={onSwitchToRegister}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#667eea',
-            cursor: 'pointer',
-            fontWeight: '500',
-            textDecoration: 'underline'
-          }}
-        >
-          Sign up
-        </button>
-      </div>
+      <style jsx>{`
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+      `}</style>
     </motion.div>
   )
 }
