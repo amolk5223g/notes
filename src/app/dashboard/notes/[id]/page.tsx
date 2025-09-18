@@ -26,21 +26,22 @@ export default function EditNotePage() {
     if (!user || !noteId) return
 
     try {
-      const { data, error } = await supabase
+      const { data, error: fetchError } = await supabase
         .from('notes')
         .select('*')
         .eq('id', noteId)
         .eq('owner_id', user.id)
         .single()
 
-      if (error) {
-        console.error('Error fetching note:', error)
+      if (fetchError) {
+        console.error('Error fetching note:', fetchError)
         setError('Note not found or access denied')
       } else {
         setNote(data)
+        setError('') // Clear any previous errors
       }
     } catch (err) {
-      console.error('Error:', err)
+      console.error('Fetch error:', err)
       setError('Failed to load note')
     } finally {
       setNoteLoading(false)
@@ -65,19 +66,19 @@ export default function EditNotePage() {
     if (!confirmed) return
 
     try {
-      const { error } = await supabase
+      const { error: deleteError } = await supabase
         .from('notes')
         .delete()
         .eq('id', note.id)
 
-      if (error) {
-        console.error('Error deleting note:', error)
-        alert('Error deleting note: ' + error.message)
+      if (deleteError) {
+        console.error('Error deleting note:', deleteError)
+        alert('Error deleting note: ' + deleteError.message)
       } else {
         router.push('/dashboard')
       }
     } catch (err) {
-      console.error('Unexpected error:', err)
+      console.error('Delete error:', err)
       alert('An unexpected error occurred')
     }
   }
@@ -125,7 +126,14 @@ export default function EditNotePage() {
             onClick={() => router.push('/dashboard')}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
+            style={{
+              padding: '12px 24px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px'
+            }}
           >
+            <ArrowLeft size={18} />
             Back to Dashboard
           </motion.button>
         </div>

@@ -1,62 +1,82 @@
 'use client'
-import { useState, useRef } from 'react'
+import { useState, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { motion } from 'framer-motion'
-import { 
-  Upload, 
-  File, 
-  Image, 
-  FileText, 
-  Video, 
-  X, 
-  Check,
-  AlertCircle
-} from 'lucide-react'
-import { Subject, UploadedFile } from '@/types'
+import { Upload, File, CheckCircle } from 'lucide-react'
 
-interface FileUploadProps {
-  subjectId?: string
-  noteId?: string
-  onUploadComplete?: (files: UploadedFile[]) => void
+interface Subject {
+  id: string
+  name: string
+  color: string
 }
 
-export default function FileUpload({ subjectId, noteId, onUploadComplete }: FileUploadProps) {
+interface FileUploadProps {
+  onUploadSuccess: () => void
+  subjects: Subject[]
+}
+
+export default function FileUpload({ onUploadSuccess, subjects }: FileUploadProps) {
   const { user } = useAuth()
-  const [dragActive, setDragActive] = useState(false)
   const [uploading, setUploading] = useState(false)
-  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
-  const [uploadProgress, setUploadProgress] = useState<{[key: string]: number}>({})
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [dragActive, setDragActive] = useState(false)
+  const [selectedSubject, setSelectedSubject] = useState<string>('')
+  const [uploadSuccess, setUploadSuccess] = useState(false)
 
-  const allowedTypes = {
-    'image/*': ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
-    'application/pdf': ['pdf'],
-    'video/*': ['mp4', 'avi', 'mkv', 'mov', 'wmv'],
-    'audio/*': ['mp3', 'wav', 'ogg'],
-    'application/msword': ['doc'],
-    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
-    'application/vnd.ms-powerpoint': ['ppt'],
-    'application/vnd.openxmlformats-officedocument.presentationml.presentation': ['pptx'],
-    'text/*': ['txt', 'md']
-  }
+  const uploadFile = useCallback(async (file: File) => {
+    if (!user) return
 
-  const getFileIcon = (fileType: string) => {
-    if (fileType.startsWith('image/')) return <Image size={20} />
-    if (fileType.startsWith('video/')) return <Video size={20} />
-    if (fileType === 'application/pdf') return <FileText size={20} />
-    return <File size={20} />
-  }
+    setUploading(true)
+    try {
+      // Upload file to Supabase Storage
+      const fileName = `${Date.now()}-${file.name}`
+      const { data: storageData, error: storageError } = await supabase.storage
+        .from('uploads')
+        .upload(fileName, file)
 
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return '0 Bytes'
-    const k = 1024
-    const sizes = ['Bytes', 'KB', 'MB', 'GB']
-    const i = Math.floor(Math.log(bytes) / Math.log(k))
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i]
-  }
+      if (storageError) {
+        console.error('Storage error:', storageError)
+        alert('Upload failed: ' + storageError.message)
+        return
+      }
 
-  const handleDrag = (e: React.DragEvent) => {
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('uploads')
+        .getPublicUrl(fileName)
+
+      // Save file metadata to database
+      const { error: dbError } = await supabase
+        .from('uploaded_files')
+        .insert([
+          {
+            name: file.name,
+            size: file.size,
+            type: file.type,
+            url: urlData.publicUrl,
+            subject_id: selectedSubject || null,
+            owner_id: user.id
+          }
+        ])
+
+      if (dbError) {
+        console.error('Database error:', dbError)
+        alert('Failed to save file info: ' + dbError.message)
+        return
+      }
+
+      setUploadSuccess(true)
+      setTimeout(() => setUploadSuccess(false), 3000)
+      onUploadSuccess()
+    } catch (error) {
+      console.error('Upload error:', error)
+      alert('Upload failed. Please try again.')
+    } finally {
+      setUploading(false)
+    }
+  }, [user, selectedSubject, onUploadSuccess])
+
+  const handleDrag = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     if (e.type === 'dragenter' || e.type === 'dragover') {
@@ -64,231 +84,138 @@ export default function FileUpload({ subjectId, noteId, onUploadComplete }: File
     } else if (e.type === 'dragleave') {
       setDragActive(false)
     }
-  }
+  }, [])
 
-  const handleDrop = (e: React.DragEvent) => {
+  const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault()
     e.stopPropagation()
     setDragActive(false)
-    
+
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      handleFiles(Array.from(e.dataTransfer.files))
+      uploadFile(e.dataTransfer.files[0])
     }
-  }
+  }, [uploadFile])
 
-  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      handleFiles(Array.from(e.target.files))
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      uploadFile(e.target.files[0])
     }
-  }
-
-  const handleFiles = async (files: File[]) => {
-    if (!user) return
-
-    setUploading(true)
-    const newUploadedFiles: UploadedFile[] = []
-
-    for (const file of files) {
-      try {
-        // Validate file size (max 50MB)
-        if (file.size > 50 * 1024 * 1024) {
-          alert(`File ${file.name} is too large. Maximum size is 50MB.`)
-          continue
-        }
-
-        // Generate unique filename
-        const fileExt = file.name.split('.').pop()
-        const fileName = `${user.id}/${subjectId || 'general'}/${Date.now()}-${Math.random().toString(36).substring(2)}.${fileExt}`
-
-        // Upload to Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-          .from('student-files')
-          .upload(fileName, file, {
-            cacheControl: '3600',
-            upsert: false
-          })
-
-        if (uploadError) {
-          console.error('Upload error:', uploadError)
-          alert(`Failed to upload ${file.name}: ${uploadError.message}`)
-          continue
-        }
-
-        // Save file metadata to database
-        const { data: fileRecord, error: dbError } = await supabase
-          .from('uploaded_files')
-          .insert({
-            filename: fileName,
-            original_name: file.name,
-            file_path: uploadData.path,
-            file_size: file.size,
-            file_type: file.type,
-            subject_id: subjectId,
-            note_id: noteId,
-            owner_id: user.id
-          })
-          .select()
-          .single()
-
-        if (dbError) {
-          console.error('Database error:', dbError)
-          // Clean up uploaded file if database insert fails
-          await supabase.storage.from('student-files').remove([fileName])
-          continue
-        }
-
-        newUploadedFiles.push(fileRecord)
-
-      } catch (error) {
-        console.error('Error uploading file:', error)
-        alert(`Failed to upload ${file.name}`)
-      }
-    }
-
-    setUploadedFiles(prev => [...prev, ...newUploadedFiles])
-    setUploading(false)
-    
-    if (onUploadComplete && newUploadedFiles.length > 0) {
-      onUploadComplete(newUploadedFiles)
-    }
-  }
+  }, [uploadFile])
 
   return (
     <div>
+      {/* Subject Selection */}
+      {subjects.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <select
+            value={selectedSubject}
+            onChange={(e) => setSelectedSubject(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.1)',
+              border: '1px solid rgba(255, 255, 255, 0.2)',
+              borderRadius: '6px',
+              color: 'white',
+              fontSize: '14px',
+              outline: 'none',
+              minWidth: '150px'
+            }}
+          >
+            <option value="">All Subjects</option>
+            {subjects.map((subject) => (
+              <option key={subject.id} value={subject.id}>
+                {subject.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
       {/* Upload Area */}
       <motion.div
-        className={`glass ${dragActive ? 'border-blue-400' : ''}`}
         style={{
-          padding: '40px',
-          borderRadius: '12px',
           border: `2px dashed ${dragActive ? '#667eea' : 'rgba(255, 255, 255, 0.3)'}`,
-          backgroundColor: dragActive ? 'rgba(102, 126, 234, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '12px',
+          padding: '40px 20px',
           textAlign: 'center',
-          cursor: 'pointer',
-          transition: 'all 0.2s ease'
+          backgroundColor: dragActive ? 'rgba(102, 126, 234, 0.1)' : 'rgba(255, 255, 255, 0.05)',
+          cursor: uploading ? 'not-allowed' : 'pointer',
+          transition: 'all 0.3s ease'
         }}
         onDragEnter={handleDrag}
         onDragLeave={handleDrag}
         onDragOver={handleDrag}
         onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        whileHover={{ scale: 1.02 }}
-        whileTap={{ scale: 0.98 }}
+        onClick={() => {
+          if (!uploading) {
+            document.getElementById('file-input')?.click()
+          }
+        }}
+        whileHover={{ scale: uploading ? 1 : 1.02 }}
       >
         <input
-          ref={fileInputRef}
+          id="file-input"
           type="file"
-          multiple
-          accept={Object.keys(allowedTypes).join(',')}
-          onChange={handleFileInput}
+          onChange={handleFileSelect}
           style={{ display: 'none' }}
+          accept=".pdf,.doc,.docx,.txt,.jpg,.jpeg,.png,.gif,.mp4,.mov,.avi"
+          disabled={uploading}
         />
 
-        <Upload size={48} style={{ 
-          color: dragActive ? '#667eea' : 'rgba(255, 255, 255, 0.6)',
-          marginBottom: '16px'
-        }} />
-
-        <h3 style={{
-          fontSize: '1.25rem',
-          fontWeight: '600',
-          color: 'white',
-          marginBottom: '8px'
-        }}>
-          {dragActive ? 'Drop files here' : 'Upload your study materials'}
-        </h3>
-
-        <p style={{
-          color: 'rgba(255, 255, 255, 0.7)',
-          marginBottom: '16px'
-        }}>
-          Drag & drop files here or click to browse
-        </p>
-
-        <p style={{
-          fontSize: '12px',
-          color: 'rgba(255, 255, 255, 0.5)'
-        }}>
-          Supports: Images, PDFs, Videos, Documents (Max 50MB each)
-        </p>
-
-        {uploading && (
-          <motion.div
-            style={{
-              marginTop: '20px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px'
-            }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-          >
+        {uploading ? (
+          <div>
             <div style={{
-              width: '20px',
-              height: '20px',
-              border: '2px solid rgba(255,255,255,0.3)',
-              borderTop: '2px solid white',
+              width: '48px',
+              height: '48px',
+              border: '4px solid rgba(255,255,255,0.3)',
+              borderTop: '4px solid #667eea',
               borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
+              animation: 'spin 1s linear infinite',
+              margin: '0 auto 16px'
             }} />
-            <span style={{ color: 'white' }}>Uploading files...</span>
-          </motion.div>
+            <p style={{ color: 'white', fontSize: '16px', fontWeight: '500' }}>
+              Uploading...
+            </p>
+          </div>
+        ) : uploadSuccess ? (
+          <div>
+            <CheckCircle size={48} style={{ color: '#10b981', margin: '0 auto 16px' }} />
+            <p style={{ color: '#10b981', fontSize: '16px', fontWeight: '500' }}>
+              Upload successful!
+            </p>
+          </div>
+        ) : (
+          <div>
+            <Upload size={48} style={{ color: 'rgba(255, 255, 255, 0.5)', margin: '0 auto 16px' }} />
+            <p style={{ color: 'white', fontSize: '16px', fontWeight: '500', marginBottom: '8px' }}>
+              Drop files here or click to upload
+            </p>
+            <p style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px' }}>
+              Supports PDF, DOC, images, and videos (max 50MB)
+            </p>
+          </div>
         )}
       </motion.div>
 
-      {/* Uploaded Files List */}
-      {uploadedFiles.length > 0 && (
-        <motion.div
-          style={{ marginTop: '20px' }}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-        >
-          <h4 style={{
-            color: 'white',
-            marginBottom: '12px',
-            fontSize: '1rem',
-            fontWeight: '600'
+      {/* Recent Uploads Preview */}
+      <div style={{ marginTop: '16px' }}>
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '12px',
+          backgroundColor: 'rgba(255, 255, 255, 0.05)',
+          borderRadius: '8px'
+        }}>
+          <File size={16} style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+          <span style={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            fontSize: '14px'
           }}>
-            Uploaded Files ({uploadedFiles.length})
-          </h4>
-          
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {uploadedFiles.map((file) => (
-              <div
-                key={file.id}
-                className="glass"
-                style={{
-                  padding: '12px 16px',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '12px'
-                }}
-              >
-                {getFileIcon(file.file_type)}
-                <div style={{ flex: 1 }}>
-                  <p style={{
-                    color: 'white',
-                    fontSize: '14px',
-                    fontWeight: '500',
-                    marginBottom: '2px'
-                  }}>
-                    {file.original_name}
-                  </p>
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.6)',
-                    fontSize: '12px'
-                  }}>
-                    {formatFileSize(file.file_size)}
-                  </p>
-                </div>
-                <Check size={16} style={{ color: '#10b981' }} />
-              </div>
-            ))}
-          </div>
-        </motion.div>
-      )}
+            Upload files to organize your study materials
+          </span>
+        </div>
+      </div>
 
       <style jsx>{`
         @keyframes spin {

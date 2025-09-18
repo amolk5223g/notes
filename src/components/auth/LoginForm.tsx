@@ -21,17 +21,18 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
-    setError('')
-
+    setError('') // Fix: Reset error with empty string
+    
     try {
-      const { data, error } = await signIn(email, password)
+      const { data, error: authError } = await signIn(email, password)
       
-      if (error) {
-        setError(error.message)
-      } else if (data.user) {
+      if (authError) {
+        setError(authError.message)
+      } else if (data) {
         router.push('/dashboard')
       }
     } catch (err) {
+      console.error('Login error:', err) // Use the error variable
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
@@ -112,6 +113,7 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
               onChange={(e) => setEmail(e.target.value)}
               placeholder="Enter your email"
               required
+              disabled={loading}
               style={{
                 width: '100%',
                 padding: '14px 16px 14px 48px',
@@ -120,7 +122,8 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
                 borderRadius: '12px',
                 color: 'white',
                 fontSize: '16px',
-                outline: 'none'
+                outline: 'none',
+                opacity: loading ? 0.6 : 1
               }}
             />
           </div>
@@ -150,6 +153,7 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               required
+              disabled={loading}
               style={{
                 width: '100%',
                 padding: '14px 48px 14px 48px',
@@ -158,12 +162,14 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
                 borderRadius: '12px',
                 color: 'white',
                 fontSize: '16px',
-                outline: 'none'
+                outline: 'none',
+                opacity: loading ? 0.6 : 1
               }}
             />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
+              disabled={loading}
               style={{
                 position: 'absolute',
                 right: '16px',
@@ -172,7 +178,8 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
                 background: 'none',
                 border: 'none',
                 color: 'rgba(255, 255, 255, 0.5)',
-                cursor: 'pointer'
+                cursor: loading ? 'not-allowed' : 'pointer',
+                opacity: loading ? 0.4 : 1
               }}
             >
               {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -182,17 +189,19 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
 
         <motion.button
           type="submit"
-          disabled={loading}
+          disabled={loading || !email || !password}
           className="btn-primary"
           style={{
             width: '100%',
             padding: '16px',
             fontSize: '16px',
             fontWeight: '600',
-            marginBottom: '24px'
+            marginBottom: '24px',
+            opacity: (loading || !email || !password) ? 0.6 : 1,
+            cursor: (loading || !email || !password) ? 'not-allowed' : 'pointer'
           }}
-          whileHover={{ scale: loading ? 1 : 1.02 }}
-          whileTap={{ scale: loading ? 1 : 0.98 }}
+          whileHover={{ scale: (loading || !email || !password) ? 1 : 1.02 }}
+          whileTap={{ scale: (loading || !email || !password) ? 1 : 0.98 }}
         >
           {loading ? (
             <div style={{
@@ -225,12 +234,14 @@ export default function LoginForm({ onToggleMode }: LoginFormProps) {
           <button
             type="button"
             onClick={onToggleMode}
+            disabled={loading}
             style={{
               background: 'none',
               border: 'none',
               color: '#667eea',
-              cursor: 'pointer',
-              textDecoration: 'underline'
+              cursor: loading ? 'not-allowed' : 'pointer',
+              textDecoration: 'underline',
+              opacity: loading ? 0.6 : 1
             }}
           >
             Sign up

@@ -1,42 +1,34 @@
 'use client'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
 import { motion } from 'framer-motion'
-import { Plus, Book, Edit3, Trash2, FolderOpen } from 'lucide-react'
-import { Subject } from '@/types'
+import { Plus, BookOpen } from 'lucide-react'
 
-interface SubjectManagerProps {
-  onSelectSubject?: (subject: Subject) => void
-  selectedSubjectId?: string
+interface Subject {
+  id: string
+  name: string
+  color: string
+  created_at: string
 }
 
-const subjectColors = [
-  '#667eea', '#f093fb', '#4facfe', '#43e97b',
-  '#fa709a', '#ffecd2', '#a8edea', '#fed6e3',
-  '#ff9a9e', '#fecfef', '#ffecd2'
-]
-
-export default function SubjectManager({ onSelectSubject, selectedSubjectId }: SubjectManagerProps) {
+export default function SubjectManager() {
   const { user } = useAuth()
   const [subjects, setSubjects] = useState<Subject[]>([])
-  const [showAddForm, setShowAddForm] = useState(false)
-  const [newSubject, setNewSubject] = useState({ name: '', description: '', color: '#667eea' })
   const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [newSubjectName, setNewSubjectName] = useState('')
+  const [newSubjectColor, setNewSubjectColor] = useState('#667eea')
 
-  useEffect(() => {
-    if (user) {
-      fetchSubjects()
-    }
-  }, [user])
+  const fetchSubjects = useCallback(async () => {
+    if (!user) return
 
-  const fetchSubjects = async () => {
     try {
       const { data, error } = await supabase
         .from('subjects')
         .select('*')
-        .eq('owner_id', user?.id)
-        .order('created_at', { ascending: false })
+        .eq('owner_id', user.id)
+        .order('name')
 
       if (error) {
         console.error('Error fetching subjects:', error)
@@ -48,71 +40,60 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
     } finally {
       setLoading(false)
     }
-  }
+  }, [user])
 
-  const handleAddSubject = async () => {
-    if (!newSubject.name.trim()) return
-
-    try {
-      const { data, error } = await supabase
-        .from('subjects')
-        .insert({
-          name: newSubject.name.trim(),
-          description: newSubject.description.trim(),
-          color: newSubject.color,
-          owner_id: user?.id
-        })
-        .select()
-        .single()
-
-      if (error) {
-        console.error('Error adding subject:', error)
-        alert('Error adding subject: ' + error.message)
-      } else {
-        setSubjects([data, ...subjects])
-        setNewSubject({ name: '', description: '', color: '#667eea' })
-        setShowAddForm(false)
-      }
-    } catch (error) {
-      console.error('Error:', error)
-      alert('An unexpected error occurred')
+  useEffect(() => {
+    if (user) {
+      fetchSubjects()
     }
-  }
+  }, [user, fetchSubjects])
 
-  const handleDeleteSubject = async (subjectId: string) => {
-    const confirmed = confirm('Are you sure you want to delete this subject? All associated files will be moved to "General".')
-    if (!confirmed) return
+  const handleCreateSubject = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!user || !newSubjectName.trim()) return
 
     try {
       const { error } = await supabase
         .from('subjects')
-        .delete()
-        .eq('id', subjectId)
+        .insert([
+          {
+            name: newSubjectName.trim(),
+            color: newSubjectColor,
+            owner_id: user.id
+          }
+        ])
 
       if (error) {
-        console.error('Error deleting subject:', error)
-        alert('Error deleting subject: ' + error.message)
+        console.error('Error creating subject:', error)
       } else {
-        setSubjects(subjects.filter(s => s.id !== subjectId))
+        setNewSubjectName('')
+        setNewSubjectColor('#667eea')
+        setShowForm(false)
+        fetchSubjects()
       }
     } catch (error) {
       console.error('Error:', error)
-      alert('An unexpected error occurred')
     }
   }
+
+  const predefinedColors = [
+    '#667eea', '#f093fb', '#4facfe', '#43e97b',
+    '#fa709a', '#ffecd2', '#a8edea', '#fad0c4'
+  ]
 
   if (loading) {
     return (
       <div style={{
         display: 'flex',
         justifyContent: 'center',
-        padding: '40px'
+        alignItems: 'center',
+        minHeight: '200px'
       }}>
         <div style={{
-          width: '30px',
-          height: '30px',
-          border: '3px solid rgba(255,255,255,0.3)',
-          borderTop: '3px solid white',
+          width: '40px',
+          height: '40px',
+          border: '4px solid rgba(255,255,255,0.3)',
+          borderTop: '4px solid white',
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }} />
@@ -126,229 +107,212 @@ export default function SubjectManager({ onSelectSubject, selectedSubjectId }: S
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: '20px'
+        marginBottom: '24px'
       }}>
-        <h3 style={{
-          fontSize: '1.25rem',
-          fontWeight: '600',
-          color: 'white'
-        }}>
-          Subjects ({subjects.length})
-        </h3>
-        
+        <h2 style={{ color: 'white', fontSize: '1.5rem', fontWeight: '600' }}>
+          Subjects
+        </h2>
         <motion.button
           className="btn-primary"
+          onClick={() => setShowForm(true)}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
           style={{
             padding: '8px 16px',
             display: 'flex',
             alignItems: 'center',
-            gap: '6px',
-            fontSize: '14px'
+            gap: '6px'
           }}
-          whileHover={{ scale: 1.05 }}
-          onClick={() => setShowAddForm(true)}
         >
           <Plus size={16} />
           Add Subject
         </motion.button>
       </div>
 
-      {/* Add Subject Form */}
-      {showAddForm && (
+      {showForm && (
         <motion.div
           className="glass"
           style={{
-            padding: '20px',
+            padding: '24px',
             borderRadius: '12px',
-            marginBottom: '20px'
+            marginBottom: '24px'
           }}
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h4 style={{
-            color: 'white',
-            marginBottom: '16px',
-            fontSize: '1rem',
-            fontWeight: '600'
-          }}>
-            Add New Subject
-          </h4>
-          
-          <div style={{ marginBottom: '16px' }}>
-            <input
-              type="text"
-              placeholder="Subject name (e.g., Mathematics, Physics)"
-              value={newSubject.name}
-              onChange={(e) => setNewSubject({...newSubject, name: e.target.value})}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
+          <form onSubmit={handleCreateSubject}>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                display: 'block',
                 color: 'white',
                 fontSize: '14px',
-                outline: 'none'
-              }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '16px' }}>
-            <textarea
-              placeholder="Description (optional)"
-              value={newSubject.description}
-              onChange={(e) => setNewSubject({...newSubject, description: e.target.value})}
-              rows={2}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.2)',
-                borderRadius: '8px',
-                color: 'white',
-                fontSize: '14px',
-                outline: 'none',
-                resize: 'vertical'
-              }}
-            />
-          </div>
-          
-          <div style={{ marginBottom: '20px' }}>
-            <label style={{
-              display: 'block',
-              color: 'white',
-              fontSize: '14px',
-              marginBottom: '8px'
-            }}>
-              Choose Color:
-            </label>
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              flexWrap: 'wrap'
-            }}>
-              {subjectColors.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => setNewSubject({...newSubject, color})}
-                  style={{
-                    width: '30px',
-                    height: '30px',
-                    borderRadius: '50%',
-                    backgroundColor: color,
-                    border: newSubject.color === color ? '3px solid white' : '1px solid rgba(255,255,255,0.3)',
-                    cursor: 'pointer'
-                  }}
-                />
-              ))}
+                fontWeight: '500',
+                marginBottom: '8px'
+              }}>
+                Subject Name
+              </label>
+              <input
+                type="text"
+                value={newSubjectName}
+                onChange={(e) => setNewSubjectName(e.target.value)}
+                placeholder="e.g., Mathematics, Physics, Chemistry"
+                required
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  border: '1px solid rgba(255, 255, 255, 0.2)',
+                  borderRadius: '8px',
+                  color: 'white',
+                  fontSize: '16px',
+                  outline: 'none'
+                }}
+              />
             </div>
-          </div>
-          
-          <div style={{ display: 'flex', gap: '12px' }}>
-            <button
-              onClick={handleAddSubject}
-              className="btn-primary"
-              style={{ padding: '8px 16px', fontSize: '14px' }}
-            >
-              Add Subject
-            </button>
-            <button
-              onClick={() => setShowAddForm(false)}
-              className="btn-secondary"
-              style={{
-                padding: '8px 16px',
-                fontSize: '14px',
-                backgroundColor: 'rgba(255, 255, 255, 0.1)',
+
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{
+                display: 'block',
                 color: 'white',
-                border: '1px solid rgba(255, 255, 255, 0.2)'
-              }}
-            >
-              Cancel
-            </button>
-          </div>
+                fontSize: '14px',
+                fontWeight: '500',
+                marginBottom: '8px'
+              }}>
+                Color
+              </label>
+              <div style={{
+                display: 'flex',
+                gap: '8px',
+                flexWrap: 'wrap'
+              }}>
+                {predefinedColors.map((color) => (
+                  <button
+                    key={color}
+                    type="button"
+                    onClick={() => setNewSubjectColor(color)}
+                    style={{
+                      width: '32px',
+                      height: '32px',
+                      borderRadius: '50%',
+                      backgroundColor: color,
+                      border: newSubjectColor === color ? '3px solid white' : '1px solid rgba(255, 255, 255, 0.3)',
+                      cursor: 'pointer'
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <motion.button
+                type="submit"
+                className="btn-primary"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Create Subject
+              </motion.button>
+              <motion.button
+                type="button"
+                onClick={() => setShowForm(false)}
+                className="btn-secondary"
+                style={{
+                  backgroundColor: 'rgba(255, 255, 255, 0.1)',
+                  color: 'white',
+                  border: '1px solid rgba(255, 255, 255, 0.2)'
+                }}
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                Cancel
+              </motion.button>
+            </div>
+          </form>
         </motion.div>
       )}
 
-      {/* Subjects Grid */}
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))',
-        gap: '16px'
-      }}>
-        {subjects.map((subject, index) => (
-          <motion.div
-            key={subject.id}
-            className="glass"
-            style={{
-              padding: '20px',
-              borderRadius: '12px',
-              cursor: 'pointer',
-              borderLeft: `4px solid ${subject.color}`,
-              backgroundColor: selectedSubjectId === subject.id ? 'rgba(255, 255, 255, 0.1)' : 'rgba(255, 255, 255, 0.05)'
-            }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            whileHover={{ scale: 1.02 }}
-            onClick={() => onSelectSubject?.(subject)}
+      {subjects.length === 0 ? (
+        <motion.div
+          className="glass"
+          style={{
+            padding: '40px',
+            textAlign: 'center',
+            borderRadius: '12px'
+          }}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
+          <BookOpen size={48} style={{
+            color: 'rgba(255, 255, 255, 0.5)',
+            marginBottom: '16px'
+          }} />
+          <h3 style={{
+            color: 'white',
+            fontSize: '1.125rem',
+            fontWeight: '600',
+            marginBottom: '8px'
+          }}>
+            No subjects yet
+          </h3>
+          <p style={{
+            color: 'rgba(255, 255, 255, 0.7)',
+            marginBottom: '20px'
+          }}>
+            Create your first subject to organize your study materials
+          </p>
+          <motion.button
+            className="btn-primary"
+            onClick={() => setShowForm(true)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
           >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: '12px'
-            }}>
+            <Plus size={16} style={{ marginRight: '6px' }} />
+            Add Subject
+          </motion.button>
+        </motion.div>
+      ) : (
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+          gap: '16px'
+        }}>
+          {subjects.map((subject, index) => (
+            <motion.div
+              key={subject.id}
+              className="glass"
+              style={{
+                padding: '20px',
+                borderRadius: '12px',
+                borderLeft: `4px solid ${subject.color}`
+              }}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.1 }}
+              whileHover={{ scale: 1.02, y: -2 }}
+            >
               <div style={{
-                width: '40px',
-                height: '40px',
-                borderRadius: '50%',
-                backgroundColor: subject.color,
                 display: 'flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                marginBottom: '12px'
+                gap: '12px'
               }}>
-                <Book size={20} color="white" />
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  borderRadius: '50%',
+                  backgroundColor: subject.color
+                }} />
+                <h3 style={{
+                  color: 'white',
+                  fontSize: '1rem',
+                  fontWeight: '600'
+                }}>
+                  {subject.name}
+                </h3>
               </div>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation()
-                  handleDeleteSubject(subject.id)
-                }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'rgba(255, 255, 255, 0.5)',
-                  cursor: 'pointer',
-                  padding: '4px'
-                }}
-              >
-                <Trash2 size={16} />
-              </button>
-            </div>
-            
-            <h4 style={{
-              fontSize: '1.125rem',
-              fontWeight: '600',
-              color: 'white',
-              marginBottom: '8px'
-            }}>
-              {subject.name}
-            </h4>
-            
-            {subject.description && (
-              <p style={{
-                color: 'rgba(255, 255, 255, 0.7)',
-                fontSize: '14px',
-                lineHeight: '1.4'
-              }}>
-                {subject.description}
-              </p>
-            )}
-          </motion.div>
-        ))}
-      </div>
+            </motion.div>
+          ))}
+        </div>
+      )}
 
       <style jsx>{`
         @keyframes spin {

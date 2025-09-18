@@ -2,8 +2,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { motion } from 'framer-motion'
-import { Users, Wifi, WifiOff, Save, Eye } from 'lucide-react'
+import { Wifi, WifiOff, Save, Eye } from 'lucide-react'
 import { Note } from '@/types'
 
 interface SimpleCollaborativeEditorProps {
@@ -105,14 +104,14 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
         const users: ActiveUser[] = []
         
         for (const userId in presenceState) {
-          const presences = presenceState[userId] as any[]
+          const presences = presenceState[userId] as Record<string, unknown>[]
           if (presences.length > 0 && userId !== user.id) {
-            const presence = presences[0]
+            const presence = presences[0] as Record<string, unknown>
             users.push({
               id: userId,
-              name: presence.name || 'Anonymous',
+              name: (presence.name as string) || 'Anonymous',
               color: getUserColor(userId),
-              cursor_position: presence.cursor_position || 0,
+              cursor_position: (presence.cursor_position as number) || 0,
               last_seen: new Date().toISOString()
             })
           }
@@ -122,12 +121,12 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
       })
       .on('presence', { event: 'join' }, ({ key, newPresences }) => {
         if (key !== user.id && newPresences.length > 0) {
-          const presence = newPresences[0] as any
+          const presence = newPresences[0] as Record<string, unknown>
           const newUser: ActiveUser = {
             id: key,
-            name: presence.name || 'Anonymous',
+            name: (presence.name as string) || 'Anonymous',
             color: getUserColor(key),
-            cursor_position: presence.cursor_position || 0,
+            cursor_position: (presence.cursor_position as number) || 0,
             last_seen: new Date().toISOString()
           }
           
@@ -248,14 +247,14 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Eye size={16} style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
               <div style={{ display: 'flex', gap: '4px' }}>
-                {activeUsers.slice(0, 4).map((user) => (
+                {activeUsers.slice(0, 4).map((activeUser) => (
                   <div
-                    key={user.id}
+                    key={activeUser.id}
                     style={{
                       width: '20px',
                       height: '20px',
                       borderRadius: '50%',
-                      backgroundColor: user.color,
+                      backgroundColor: activeUser.color,
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
@@ -264,9 +263,9 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
                       color: 'white',
                       border: '2px solid rgba(255, 255, 255, 0.2)'
                     }}
-                    title={user.name}
+                    title={activeUser.name}
                   >
-                    {user.name.charAt(0).toUpperCase()}
+                    {activeUser.name.charAt(0).toUpperCase()}
                   </div>
                 ))}
                 {activeUsers.length > 4 && (
@@ -391,31 +390,31 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
             Active Collaborators:
           </h4>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-            {activeUsers.map((user) => (
+            {activeUsers.map((activeUser) => (
               <div
-                key={user.id}
+                key={activeUser.id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   gap: '6px',
                   padding: '4px 8px',
-                  backgroundColor: user.color + '20',
+                  backgroundColor: activeUser.color + '20',
                   borderRadius: '12px',
-                  border: `1px solid ${user.color}40`
+                  border: `1px solid ${activeUser.color}40`
                 }}
               >
                 <div style={{
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  backgroundColor: user.color
+                  backgroundColor: activeUser.color
                 }} />
                 <span style={{
                   color: 'white',
                   fontSize: '12px',
                   fontWeight: '500'
                 }}>
-                  {user.name}
+                  {activeUser.name}
                 </span>
               </div>
             ))}
