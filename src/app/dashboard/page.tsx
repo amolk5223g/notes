@@ -1,71 +1,123 @@
 'use client'
-import { useState, useEffect, useCallback } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
-import DashboardLayout from '@/components/layout/DashboardLayout'
 import { motion } from 'framer-motion'
 import { 
   Plus, 
-  Search, 
   FileText, 
-  Lock,
-  Calendar,
-  Tag
+  Search, 
+  Calendar, 
+  TrendingUp,
+  BookOpen,
+  Users,
+  Settings,
+  LogOut
 } from 'lucide-react'
+import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Note } from '@/types'
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth()
+  const { user, loading, signOut } = useAuth()
   const router = useRouter()
   const [notes, setNotes] = useState<Note[]>([])
-  const [searchQuery, setSearchQuery] = useState('')
-  const [filteredNotes, setFilteredNotes] = useState<Note[]>([])
   const [notesLoading, setNotesLoading] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [error, setError] = useState('')
 
+  // Fixed fetchNotes function
   const fetchNotes = useCallback(async () => {
-    if (!user) return
+    if (!user) {
+      setNotesLoading(false)
+      return
+    }
 
-    setNotesLoading(true)
     try {
-      const { data, error } = await supabase
+      console.log('Fetching notes for user:', user.id) // Debug log
+      
+      const { data, error: fetchError } = await supabase
         .from('notes')
         .select('*')
         .eq('owner_id', user.id)
         .order('updated_at', { ascending: false })
 
-      if (error) {
-        console.error('Error fetching notes:', error)
+      if (fetchError) {
+        console.error('Supabase fetch error:', fetchError)
+        setError(`Database error: ${fetchError.message}`)
       } else {
+        console.log('Notes fetched successfully:', data?.length || 0) // Debug log
         setNotes(data || [])
+        setError('') // Clear any previous errors
       }
     } catch (err) {
-      console.error('Error:', err)
+      console.error('Network or parsing error:', err)
+      setError('Failed to load notes. Please check your connection.')
     } finally {
       setNotesLoading(false)
     }
   }, [user])
 
+  // Redirect if not authenticated
   useEffect(() => {
     if (!loading && !user) {
       router.push('/auth')
       return
     }
-    
+
     if (user) {
       fetchNotes()
     }
   }, [user, loading, router, fetchNotes])
 
-  useEffect(() => {
-    const filtered = notes.filter(note =>
-      note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      note.content?.toLowerCase().includes(searchQuery.toLowerCase())
-    )
-    setFilteredNotes(filtered)
-  }, [searchQuery, notes])
+  const handleCreateNote = async () => {
+    if (!user) return
 
-  if (loading) {
+    try {
+      const { data, error: createError } = await supabase
+        .from('notes')
+        .insert([
+          {
+            title: 'Untitled Note',
+            content: '',
+            owner_id: user.id,
+            subject: 'General',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }
+        ])
+        .select()
+        .single()
+
+      if (createError) {
+        console.error('Error creating note:', createError)
+        setError(`Failed to create note: ${createError.message}`)
+      } else if (data) {
+        router.push(`/dashboard/notes/${data.id}`)
+      }
+    } catch (err) {
+      console.error('Create note error:', err)
+      setError('Failed to create note. Please try again.')
+    }
+  }
+
+  const handleSignOut = async () => {
+    try {
+      await signOut()
+      router.push('/auth')
+    } catch (err) {
+      console.error('Sign out error:', err)
+    }
+  }
+
+  // Filter notes based on search
+  const filteredNotes = notes.filter(note =>
+    note.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    note.content.toLowerCase().includes(searchQuery.toLowerCase())
+  )
+
+  // Loading state
+  if (loading || notesLoading) {
     return (
       <DashboardLayout>
         <div style={{
@@ -87,8 +139,49 @@ export default function DashboardPage() {
     )
   }
 
-  if (!user) {
-    return null
+  // Error state
+  if (error) {
+    return (
+      <DashboardLayout>
+        <div style={{
+          textAlign: 'center',
+          padding: '60px 20px',
+          maxWidth: '500px',
+          margin: '0 auto'
+        }}>
+          <div style={{
+            backgroundColor: 'rgba(239, 68, 68, 0.1)',
+            border: '1px solid rgba(239, 68, 68, 0.3)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '20px'
+          }}>
+            <h3 style={{ color: '#ef4444', marginBottom: '8px' }}>Connection Error</h3>
+            <p style={{ color: 'rgba(255, 255, 255, 0.8)', fontSize: '14px', marginBottom: '16px' }}>
+              {error}
+            </p>
+            <motion.button
+              className="btn-primary"
+              onClick={fetchNotes}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{ padding: '12px 24px' }}
+            >
+              Try Again
+            </motion.button>
+          </div>
+          
+          <div style={{ marginTop: '24px' }}>
+            <h4 style={{ color: 'white', marginBottom: '12px' }}>Troubleshooting:</h4>
+            <ul style={{ color: 'rgba(255, 255, 255, 0.7)', fontSize: '14px', textAlign: 'left' }}>
+              <li>• Check your internet connection</li>
+              <li>• Make sure Supabase is configured correctly</li>
+              <li>• Verify your database permissions</li>
+            </ul>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -106,40 +199,58 @@ export default function DashboardPage() {
               fontSize: '2rem',
               fontWeight: '700',
               color: 'white',
-              marginBottom: '4px'
+              marginBottom: '8px'
             }}>
-              Your Notes
+              Welcome back, {user?.email?.split('@')[0] || 'User'}! 👋
             </h1>
             <p style={{
               color: 'rgba(255, 255, 255, 0.7)',
               fontSize: '1rem'
             }}>
-              {notes.length} {notes.length === 1 ? 'note' : 'notes'} • Last updated {new Date().toLocaleDateString()}
+              You have {notes.length} {notes.length === 1 ? 'note' : 'notes'} in your collection
             </p>
           </div>
 
-          <motion.button
-            className="btn-primary"
-            style={{
-              padding: '12px 20px',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px'
-            }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => router.push('/dashboard/new')}
-          >
-            <Plus size={18} />
-            New Note
-          </motion.button>
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <motion.button
+              className="btn-secondary"
+              onClick={handleSignOut}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 16px'
+              }}
+            >
+              <LogOut size={16} />
+              Sign Out
+            </motion.button>
+
+            <motion.button
+              className="btn-primary"
+              onClick={handleCreateNote}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '12px 20px'
+              }}
+            >
+              <Plus size={18} />
+              New Note
+            </motion.button>
+          </div>
         </div>
 
         {/* Search Bar */}
         <div style={{
           position: 'relative',
-          marginBottom: '32px',
-          maxWidth: '400px'
+          maxWidth: '500px',
+          marginBottom: '32px'
         }}>
           <Search size={20} style={{
             position: 'absolute',
@@ -150,12 +261,12 @@ export default function DashboardPage() {
           }} />
           <input
             type="text"
-            placeholder="Search your notes..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search your notes..."
             style={{
               width: '100%',
-              padding: '12px 16px 12px 48px',
+              padding: '16px 16px 16px 48px',
               backgroundColor: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
               borderRadius: '12px',
@@ -167,96 +278,72 @@ export default function DashboardPage() {
         </div>
 
         {/* Notes Grid */}
-        {notesLoading ? (
+        {filteredNotes.length === 0 ? (
           <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            minHeight: '200px'
+            textAlign: 'center',
+            padding: '80px 20px',
+            maxWidth: '500px',
+            margin: '0 auto'
           }}>
-            <div style={{
-              width: '40px',
-              height: '40px',
-              border: '4px solid rgba(255,255,255,0.3)',
-              borderTop: '4px solid white',
-              borderRadius: '50%',
-              animation: 'spin 1s linear infinite'
-            }} />
-          </div>
-        ) : filteredNotes.length === 0 ? (
-          <motion.div
-            className="glass"
-            style={{
-              padding: '60px 40px',
-              textAlign: 'center',
-              borderRadius: '16px'
-            }}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <FileText size={64} style={{
-              color: 'rgba(255, 255, 255, 0.5)',
+            <BookOpen size={64} style={{
+              color: 'rgba(255, 255, 255, 0.3)',
               marginBottom: '24px'
             }} />
-            
             <h3 style={{
-              fontSize: '1.5rem',
-              fontWeight: '600',
               color: 'white',
+              fontSize: '1.5rem',
               marginBottom: '12px'
             }}>
               {searchQuery ? 'No notes found' : 'No notes yet'}
             </h3>
-            
             <p style={{
               color: 'rgba(255, 255, 255, 0.7)',
-              marginBottom: '32px',
-              lineHeight: '1.6'
+              marginBottom: '24px',
+              lineHeight: '1.5'
             }}>
               {searchQuery 
                 ? `No notes match "${searchQuery}". Try a different search term.`
-                : 'Create your first note to get started with your study journey!'
+                : 'Create your first collaborative note to get started!'
               }
             </p>
-            
             {!searchQuery && (
               <motion.button
                 className="btn-primary"
+                onClick={handleCreateNote}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
                 style={{
-                  padding: '12px 24px',
                   display: 'inline-flex',
                   alignItems: 'center',
-                  gap: '8px'
+                  gap: '8px',
+                  padding: '16px 24px'
                 }}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => router.push('/dashboard/new')}
               >
-                <Plus size={18} />
-                Create First Note
+                <Plus size={20} />
+                Create Your First Note
               </motion.button>
             )}
-          </motion.div>
+          </div>
         ) : (
           <div style={{
             display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
-            gap: '20px'
+            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+            gap: '24px'
           }}>
-            {filteredNotes.map((note, index) => (
+            {filteredNotes.map((note) => (
               <motion.div
                 key={note.id}
                 className="glass"
                 style={{
                   padding: '24px',
-                  borderRadius: '16px',
-                  cursor: 'pointer'
+                  cursor: 'pointer',
+                  borderRadius: '16px'
                 }}
+                whileHover={{ scale: 1.02, y: -2 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => router.push(`/dashboard/notes/${note.id}`)}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                whileHover={{ scale: 1.02, y: -4 }}
-                onClick={() => router.push(`/dashboard/notes/${note.id}`)}
               >
                 <div style={{
                   display: 'flex',
@@ -264,84 +351,55 @@ export default function DashboardPage() {
                   justifyContent: 'space-between',
                   marginBottom: '16px'
                 }}>
-                  <h3 style={{
-                    fontSize: '1.25rem',
-                    fontWeight: '600',
-                    color: 'white',
-                    marginBottom: '8px',
-                    lineHeight: '1.3'
+                  <FileText size={24} style={{ color: '#667eea' }} />
+                  <span style={{
+                    backgroundColor: 'rgba(102, 126, 234, 0.2)',
+                    color: '#a5b4fc',
+                    padding: '4px 8px',
+                    borderRadius: '12px',
+                    fontSize: '12px',
+                    fontWeight: '500'
                   }}>
-                    {note.title}
-                  </h3>
-                  
-                  {note.is_encrypted && (
-                    <Lock size={16} style={{ color: '#fbbf24' }} />
-                  )}
+                    {note.subject || 'General'}
+                  </span>
                 </div>
 
-                {note.content && (
-                  <p style={{
-                    color: 'rgba(255, 255, 255, 0.7)',
-                    fontSize: '14px',
-                    lineHeight: '1.5',
-                    marginBottom: '16px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical'
-                  }}>
-                    {note.content.substring(0, 150)}
-                    {note.content.length > 150 && '...'}
-                  </p>
-                )}
+                <h3 style={{
+                  color: 'white',
+                  fontSize: '1.25rem',
+                  fontWeight: '600',
+                  marginBottom: '8px',
+                  lineHeight: '1.3'
+                }}>
+                  {note.title || 'Untitled'}
+                </h3>
 
-                {note.tags && note.tags.length > 0 && (
-                  <div style={{
-                    display: 'flex',
-                    gap: '6px',
-                    marginBottom: '16px',
-                    flexWrap: 'wrap'
-                  }}>
-                    {note.tags.slice(0, 3).map((tag, tagIndex) => (
-                      <span
-                        key={tagIndex}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                          backgroundColor: 'rgba(102, 126, 234, 0.3)',
-                          color: '#a5b4fc',
-                          padding: '4px 8px',
-                          borderRadius: '12px',
-                          fontSize: '12px',
-                          fontWeight: '500'
-                        }}
-                      >
-                        <Tag size={10} />
-                        {tag}
-                      </span>
-                    ))}
-                    {note.tags.length > 3 && (
-                      <span style={{
-                        color: 'rgba(255, 255, 255, 0.5)',
-                        fontSize: '12px'
-                      }}>
-                        +{note.tags.length - 3} more
-                      </span>
-                    )}
-                  </div>
-                )}
+                <p style={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '14px',
+                  lineHeight: '1.5',
+                  marginBottom: '16px',
+                  overflow: 'hidden',
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical'
+                }}>
+                  {note.content || 'No content yet...'}
+                </p>
 
                 <div style={{
                   display: 'flex',
+                  justifyContent: 'space-between',
                   alignItems: 'center',
-                  gap: '8px',
                   fontSize: '12px',
                   color: 'rgba(255, 255, 255, 0.5)'
                 }}>
-                  <Calendar size={12} />
-                  {new Date(note.updated_at).toLocaleDateString()}
+                  <span>
+                    {new Date(note.updated_at).toLocaleDateString()}
+                  </span>
+                  <span>
+                    {note.content?.length || 0} chars
+                  </span>
                 </div>
               </motion.div>
             ))}
