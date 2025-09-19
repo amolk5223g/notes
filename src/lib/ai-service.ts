@@ -16,7 +16,7 @@ export interface QuizQuestion {
   options: string[]
   correctAnswer: number
   explanation: string
-  type: 'multiple-choice' | 'true-false' | 'short-answer'
+  type: 'multiple-choice'
 }
 
 export class AIStudyAssistant {
@@ -30,21 +30,17 @@ export class AIStudyAssistant {
     Content: ${content}
     
     Return a JSON object with:
-    - summary: A concise 2-3 sentence summary of the main concepts
-    - keyPoints: Array of 3-5 most important points (as strings)
-    - tags: Array of relevant subject/topic tags (3-5 tags)
-    - difficulty: Rate as "beginner", "intermediate", or "advanced"
-    - estimatedReadTime: Reading time in minutes (number)
-    - studyTips: Array of 3 specific study tips for this content
-    
-    Keep responses concise and student-friendly.
+    - summary: A concise 2-3 sentence summary
+    - keyPoints: Array of 3-5 important points
+    - tags: Array of relevant tags (3-5 tags)
+    - difficulty: "beginner", "intermediate", or "advanced"
+    - estimatedReadTime: Reading time in minutes
+    - studyTips: Array of 3 study tips
     `
 
     try {
       const result = await this.model.generateContent(prompt)
       const response = result.response.text()
-      
-      // Parse JSON response (add error handling)
       const cleanResponse = response.replace(/``````\n?/g, '')
       return JSON.parse(cleanResponse) as AIAnalysis
     } catch (error) {
@@ -62,19 +58,15 @@ export class AIStudyAssistant {
     
     Return a JSON array of quiz questions, each with:
     - question: The question text
-    - options: Array of 4 possible answers for multiple choice
-    - correctAnswer: Index (0-3) of the correct answer
-    - explanation: Brief explanation of why the answer is correct
-    - type: Always "multiple-choice" for now
-    
-    Make questions test understanding, not just memorization.
-    Vary difficulty levels across questions.
+    - options: Array of 4 possible answers
+    - correctAnswer: Index (0-3) of correct answer
+    - explanation: Brief explanation
+    - type: "multiple-choice"
     `
 
     try {
       const result = await this.model.generateContent(prompt)
       const response = result.response.text()
-      
       const cleanResponse = response.replace(/``````\n?/g, '')
       return JSON.parse(cleanResponse) as QuizQuestion[]
     } catch (error) {
@@ -85,15 +77,12 @@ export class AIStudyAssistant {
 
   async askQuestion(noteContent: string, userQuestion: string): Promise<string> {
     const prompt = `
-    You are an AI study tutor. A student is asking a question about their study notes.
+    You are an AI study tutor. Answer the student's question about their notes.
     
     Study Notes: ${noteContent}
-    
     Student Question: ${userQuestion}
     
-    Provide a clear, helpful answer based on the study notes. If the question isn't covered in the notes, say so and offer related information that might help.
-    
-    Keep your response concise but thorough, and explain concepts in a student-friendly way.
+    Provide a clear, helpful answer based on the notes.
     `
 
     try {
@@ -102,34 +91,6 @@ export class AIStudyAssistant {
     } catch (error) {
       console.error('Q&A error:', error)
       throw new Error('Failed to process question')
-    }
-  }
-
-  async getStudyPlan(notes: Array<{title: string, content: string}>, timeAvailable: number): Promise<string> {
-    const notesContent = notes.map(note => `${note.title}: ${note.content.substring(0, 200)}...`).join('\n\n')
-    
-    const prompt = `
-    Create a personalized study plan based on these notes. The student has ${timeAvailable} hours available.
-    
-    Notes:
-    ${notesContent}
-    
-    Create a structured study plan that:
-    - Prioritizes topics by importance and difficulty
-    - Allocates time efficiently 
-    - Suggests study techniques for each topic
-    - Includes break recommendations
-    - Provides a timeline
-    
-    Format as markdown with clear sections.
-    `
-
-    try {
-      const result = await this.model.generateContent(prompt)
-      return result.response.text()
-    } catch (error) {
-      console.error('Study plan error:', error)
-      throw new Error('Failed to generate study plan')
     }
   }
 }

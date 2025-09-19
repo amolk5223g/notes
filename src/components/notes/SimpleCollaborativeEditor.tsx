@@ -2,8 +2,11 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { supabase } from '@/lib/supabase'
-import { Wifi, WifiOff, Save, Eye } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { Wifi, WifiOff, Save, Eye, Brain } from 'lucide-react'
 import { Note } from '@/types'
+import { RealtimeChannel } from '@supabase/supabase-js'
+import AIAssistant from '@/components/ai/AIAssistant'
 
 interface SimpleCollaborativeEditorProps {
   note: Note
@@ -26,8 +29,9 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
   const [isConnected, setIsConnected] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [lastSaved, setLastSaved] = useState<Date | null>(null)
+  const [showAI, setShowAI] = useState(false)
   
-  const channelRef = useRef<any>(null)
+  const channelRef = useRef<RealtimeChannel | null>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   // Generate user color based on ID
@@ -212,22 +216,30 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
     }
   }
 
+  // Create updated note object for AI Assistant
+  const currentNote: Note = {
+    ...note,
+    title: title,
+    content: content
+  }
+
   return (
-    <div style={{ height: '100%' }}>
-      {/* Status Bar */}
+    <div style={{ height: '100%', position: 'relative' }}>
+      {/* Enhanced Status Bar with AI Assistant */}
       <div style={{
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '12px 16px',
         backgroundColor: 'rgba(255, 255, 255, 0.05)',
-        borderRadius: '8px',
+        borderRadius: '12px',
         marginBottom: '16px',
-        border: '1px solid rgba(255, 255, 255, 0.1)'
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        backdrop: 'blur(8px)'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
           {/* Connection Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             {isConnected ? (
               <Wifi size={16} style={{ color: '#10b981' }} />
             ) : (
@@ -235,19 +247,19 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
             )}
             <span style={{
               color: isConnected ? '#10b981' : '#ef4444',
-              fontSize: '12px',
+              fontSize: '13px',
               fontWeight: '500'
             }}>
-              {isConnected ? 'Live Collaboration Active' : 'Connecting...'}
+              {isConnected ? 'Live' : 'Connecting...'}
             </span>
           </div>
 
           {/* Active Users */}
           {activeUsers.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Eye size={16} style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Eye size={14} style={{ color: 'rgba(255, 255, 255, 0.7)' }} />
               <div style={{ display: 'flex', gap: '4px' }}>
-                {activeUsers.slice(0, 4).map((activeUser) => (
+                {activeUsers.slice(0, 3).map((activeUser) => (
                   <div
                     key={activeUser.id}
                     style={{
@@ -268,7 +280,7 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
                     {activeUser.name.charAt(0).toUpperCase()}
                   </div>
                 ))}
-                {activeUsers.length > 4 && (
+                {activeUsers.length > 3 && (
                   <div style={{
                     width: '20px',
                     height: '20px',
@@ -281,7 +293,7 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
                     fontWeight: '600',
                     color: 'white'
                   }}>
-                    +{activeUsers.length - 4}
+                    +{activeUsers.length - 3}
                   </div>
                 )}
               </div>
@@ -298,36 +310,74 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
           )}
         </div>
 
-        {/* Save Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          {isSaving ? (
-            <>
-              <div style={{
-                width: '12px',
-                height: '12px',
-                border: '2px solid rgba(255,255,255,0.3)',
-                borderTop: '2px solid white',
-                borderRadius: '50%',
-                animation: 'spin 1s linear infinite'
-              }} />
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {/* AI Assistant Button */}
+          <motion.button
+            onClick={() => setShowAI(true)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: 'rgba(102, 126, 234, 0.2)',
+              color: '#a5b4fc',
+              border: '1px solid rgba(102, 126, 234, 0.3)',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '12px',
+              fontWeight: '500',
+              transition: 'all 0.2s ease'
+            }}
+            whileHover={{ 
+              scale: 1.05, 
+              backgroundColor: 'rgba(102, 126, 234, 0.3)',
+              boxShadow: '0 4px 12px rgba(102, 126, 234, 0.3)'
+            }}
+            whileTap={{ scale: 0.95 }}
+          >
+            <Brain size={14} />
+            AI Assistant
+          </motion.button>
+
+          {/* Save Status */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {isSaving ? (
+              <>
+                <div style={{
+                  width: '12px',
+                  height: '12px',
+                  border: '2px solid rgba(255,255,255,0.3)',
+                  borderTop: '2px solid white',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite'
+                }} />
+                <span style={{
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '12px'
+                }}>
+                  Saving...
+                </span>
+              </>
+            ) : lastSaved ? (
+              <>
+                <Save size={12} style={{ color: '#10b981' }} />
+                <span style={{
+                  color: '#10b981',
+                  fontSize: '12px'
+                }}>
+                  Saved {lastSaved.toLocaleTimeString()}
+                </span>
+              </>
+            ) : (
               <span style={{
-                color: 'rgba(255, 255, 255, 0.7)',
+                color: 'rgba(255, 255, 255, 0.5)',
                 fontSize: '12px'
               }}>
-                Saving...
+                Auto-save enabled
               </span>
-            </>
-          ) : lastSaved ? (
-            <>
-              <Save size={12} style={{ color: '#10b981' }} />
-              <span style={{
-                color: '#10b981',
-                fontSize: '12px'
-              }}>
-                Saved {lastSaved.toLocaleTimeString()}
-              </span>
-            </>
-          ) : null}
+            )}
+          </div>
         </div>
       </div>
 
@@ -346,8 +396,12 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
           fontWeight: '700',
           color: 'white',
           marginBottom: '20px',
-          padding: '8px 0'
+          padding: '12px 0',
+          borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          transition: 'border-color 0.2s ease'
         }}
+        onFocus={(e) => e.target.style.borderBottomColor = 'rgba(102, 126, 234, 0.5)'}
+        onBlur={(e) => e.target.style.borderBottomColor = 'rgba(255, 255, 255, 0.1)'}
       />
 
       {/* Content Editor */}
@@ -357,57 +411,71 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
         onChange={handleContentChange}
         onKeyUp={handleCursorMove}
         onMouseUp={handleCursorMove}
-        placeholder="Start writing your collaborative note... Changes sync in real-time!"
+        placeholder="Start writing your collaborative note... Changes sync in real-time! ✨"
         style={{
           width: '100%',
-          minHeight: '400px',
+          minHeight: '450px',
           background: 'none',
           border: 'none',
           outline: 'none',
           fontSize: '1rem',
-          lineHeight: '1.6',
+          lineHeight: '1.7',
           color: 'rgba(255, 255, 255, 0.9)',
           resize: 'vertical',
           fontFamily: 'inherit',
-          padding: '0'
+          padding: '16px 0',
+          letterSpacing: '0.01em'
         }}
       />
 
-      {/* Active Users List */}
+      {/* Enhanced Active Users List */}
       {activeUsers.length > 0 && (
-        <div style={{
-          marginTop: '16px',
-          padding: '12px',
-          backgroundColor: 'rgba(255, 255, 255, 0.05)',
-          borderRadius: '8px'
-        }}>
+        <motion.div 
+          style={{
+            marginTop: '24px',
+            padding: '16px',
+            backgroundColor: 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '12px',
+            border: '1px solid rgba(255, 255, 255, 0.1)'
+          }}
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+        >
           <h4 style={{
             color: 'white',
             fontSize: '14px',
-            marginBottom: '8px',
-            fontWeight: '600'
+            marginBottom: '12px',
+            fontWeight: '600',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
           }}>
-            Active Collaborators:
+            <Eye size={16} />
+            Active Collaborators ({activeUsers.length})
           </h4>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {activeUsers.map((activeUser) => (
-              <div
+              <motion.div
                 key={activeUser.id}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px',
-                  padding: '4px 8px',
+                  gap: '8px',
+                  padding: '6px 12px',
                   backgroundColor: activeUser.color + '20',
-                  borderRadius: '12px',
+                  borderRadius: '20px',
                   border: `1px solid ${activeUser.color}40`
                 }}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                whileHover={{ scale: 1.05 }}
               >
                 <div style={{
                   width: '8px',
                   height: '8px',
                   borderRadius: '50%',
-                  backgroundColor: activeUser.color
+                  backgroundColor: activeUser.color,
+                  animation: 'pulse 2s infinite'
                 }} />
                 <span style={{
                   color: 'white',
@@ -416,16 +484,50 @@ export default function SimpleCollaborativeEditor({ note, onSave }: SimpleCollab
                 }}>
                   {activeUser.name}
                 </span>
-              </div>
+              </motion.div>
             ))}
           </div>
-        </div>
+        </motion.div>
       )}
+
+      {/* Word Count & Stats */}
+      <div style={{
+        marginTop: '16px',
+        padding: '12px 16px',
+        backgroundColor: 'rgba(255, 255, 255, 0.03)',
+        borderRadius: '8px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        fontSize: '12px',
+        color: 'rgba(255, 255, 255, 0.6)'
+      }}>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <span>{content.length} characters</span>
+          <span>{content.trim().split(/\s+/).filter(word => word.length > 0).length} words</span>
+          <span>{content.split('\n').length} lines</span>
+        </div>
+        <div style={{ display: 'flex', gap: '16px' }}>
+          <span>Last modified: {new Date(note.updated_at || '').toLocaleDateString()}</span>
+        </div>
+      </div>
+
+      {/* AI Assistant Component */}
+      <AIAssistant
+        note={currentNote}
+        isOpen={showAI}
+        onClose={() => setShowAI(false)}
+      />
 
       <style jsx>{`
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
       `}</style>
     </div>
